@@ -1,0 +1,18 @@
+[package]
+name = "flowbuilder"
+version = "0.1.0"
+edition = "2024"
+description = "An async flow orchestration framework with conditional execution and context sharing."
+authors = ["ThneS"]
+keywords = ["flow", "workflow", "async", "rust"]
+readme = "README.md"
+license = "Apache-2.0"
+repository = "https://github.com/ThneS/flowbuilder.git"
+
+[dependencies]
+anyhow = "1.0.98"
+tokio = { version = "1.45.0", features = ["rt", "macros", "rt-multi-thread", "fs", "sync", "time"] }
+
+[dev-dependencies]
+
+[lib]
