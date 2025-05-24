@@ -1,0 +1,13 @@
+# 赞助配置文件
+# 用于配置 GitHub Sponsors 和其他赞助平台
+
+# 这些平台将显示在 GitHub 仓库的赞助按钮中
+github: [ThneS]  # GitHub 用户名
+open_collective: flowbuilder  # Open Collective 组织名
+ko_fi: thnes  # Ko-fi 用户名
+tidelift: flowbuilder  # Tidelift 订阅
+community_bridge: flowbuilder  # Community Bridge 项目
+liberapay: thnes  # Liberapay 用户名
+issuehunt: thnes/flowbuilder  # IssueHunt 项目
+otechie: thnes  # Otechie 用户名
+custom: ["https://www.buymeacoffee.com/thnes"]  # 自定义赞助链接

@@ -1,0 +1,43 @@
+# 代码所有者配置文件
+# 用于自动分配代码审查者和通知相关团队成员
+
+# 这些是默认的所有者，他们将负责整个仓库
+* @ThneS
+
+# 文档相关
+/docs/ @ThneS
+*.md @ThneS
+LICENSE @ThneS
+CHANGELOG.md @ThneS
+README.md @ThneS
+
+# 工作流配置
+/.github/ @ThneS
+.github/workflows/ @ThneS
+.github/ISSUE_TEMPLATE/ @ThneS
+.github/PULL_REQUEST_TEMPLATE.md @ThneS
+
+# 源代码
+/src/ @ThneS
+/src/core/ @ThneS
+/src/error/ @ThneS
+/src/context/ @ThneS
+/src/step/ @ThneS
+/src/flow/ @ThneS
+
+# 测试
+/tests/ @ThneS
+/benches/ @ThneS
+/examples/ @ThneS
+
+# 配置
+Cargo.toml @ThneS
+Cargo.lock @ThneS
+rustfmt.toml @ThneS
+clippy.toml @ThneS
+.editorconfig @ThneS
+.gitignore @ThneS
+
+# 安全相关
+.github/SECURITY.md @ThneS
+security.asc @ThneS

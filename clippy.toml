@@ -1,0 +1,119 @@
+# Clippy 代码检查配置文件
+# 用于保持代码质量和一致性
+
+# 允许的警告
+# 这些警告将被降级为允许级别
+allow = [
+    "clippy::too_many_arguments",      # 允许函数有多个参数
+    "clippy::type_complexity",         # 允许复杂的类型
+    "clippy::module_name_repetitions", # 允许模块名重复
+    "clippy::missing_errors_doc",      # 允许缺少错误文档
+    "clippy::missing_panics_doc",      # 允许缺少 panic 文档
+    "clippy::missing_safety_doc",      # 允许缺少安全文档
+]
+
+# 禁止的警告
+# 这些警告将被提升为错误级别
+deny = [
+    "clippy::unwrap_used",                     # 禁止使用 unwrap
+    "clippy::expect_used",                     # 禁止使用 expect
+    "clippy::panic",                           # 禁止直接使用 panic!
+    "clippy::todo",                            # 禁止使用 todo!
+    "clippy::unimplemented",                   # 禁止使用 unimplemented!
+    "clippy::unreachable",                     # 禁止使用 unreachable!
+    "clippy::indexing_slicing",                # 禁止使用索引和切片
+    "clippy::integer_arithmetic",              # 禁止整数运算
+    "clippy::float_arithmetic",                # 禁止浮点数运算
+    "clippy::as_conversions",                  # 禁止使用 as 转换
+    "clippy::clone_on_ref_ptr",                # 禁止克隆引用指针
+    "clippy::create_dir",                      # 禁止使用 create_dir
+    "clippy::dbg_macro",                       # 禁止使用 dbg! 宏
+    "clippy::decimal_literal_representation",  # 禁止使用十进制字面量表示
+    "clippy::default_numeric_fallback",        # 禁止使用默认数字回退
+    "clippy::disallowed_methods",              # 禁止使用特定方法
+    "clippy::disallowed_types",                # 禁止使用特定类型
+    "clippy::exit",                            # 禁止使用 exit
+    "clippy::filetype_is_file",                # 禁止使用 filetype_is_file
+    "clippy::float_cmp",                       # 禁止浮点数比较
+    "clippy::implicit_return",                 # 禁止隐式返回
+    "clippy::lossy_float_literal",             # 禁止有损浮点数字面量
+    "clippy::map_err_ignore",                  # 禁止忽略 map_err
+    "clippy::mem_forget",                      # 禁止使用 mem::forget
+    "clippy::missing_docs_in_private_items",   # 禁止私有项缺少文档
+    "clippy::missing_inline_in_public_items",  # 禁止公共项缺少内联
+    "clippy::multiple_inherent_impl",          # 禁止多个固有实现
+    "clippy::mut_mut",                         # 禁止可变可变引用
+    "clippy::mutex_atomic",                    # 禁止使用互斥锁原子操作
+    "clippy::needless_borrow",                 # 禁止不必要的借用
+    "clippy::needless_continue",               # 禁止不必要的 continue
+    "clippy::needless_pass_by_value",          # 禁止不必要的值传递
+    "clippy::non_ascii_literal",               # 禁止非 ASCII 字面量
+    "clippy::option_if_let_else",              # 禁止使用 option if let else
+    "clippy::path_buf_push_overwrite",         # 禁止路径缓冲区推送覆盖
+    "clippy::print_stderr",                    # 禁止打印到标准错误
+    "clippy::print_stdout",                    # 禁止打印到标准输出
+    "clippy::rc_buffer",                       # 禁止使用 rc 缓冲区
+    "clippy::rc_mutex",                        # 禁止使用 rc 互斥锁
+    "clippy::rest_pat_in_fully_bound_structs", # 禁止在完全绑定结构体中使用剩余模式
+    "clippy::same_functions_in_if_condition",  # 禁止在 if 条件中使用相同函数
+    "clippy::self_named_module_files",         # 禁止自命名模块文件
+    "clippy::separated_literal_suffix",        # 禁止分离的字面量后缀
+    "clippy::shadow_reuse",                    # 禁止阴影重用
+    "clippy::shadow_same",                     # 禁止阴影相同
+    "clippy::shadow_unrelated",                # 禁止不相关的阴影
+    "clippy::str_to_string",                   # 禁止使用 str.to_string()
+    "clippy::string_add",                      # 禁止字符串添加
+    "clippy::string_add_assign",               # 禁止字符串添加赋值
+    "clippy::string_lit_as_bytes",             # 禁止字符串字面量作为字节
+    "clippy::string_to_string",                # 禁止使用 string.to_string()
+    "clippy::suspicious_arithmetic_impl",      # 禁止可疑的算术实现
+    "clippy::suspicious_op_assign_impl",       # 禁止可疑的操作赋值实现
+    "clippy::transmute_ptr_to_ptr",            # 禁止指针到指针的转换
+    "clippy::transmute_ptr_to_ref",            # 禁止指针到引用的转换
+    "clippy::transmute_ref_to_ref",            # 禁止引用到引用的转换
+    "clippy::undocumented_unsafe_blocks",      # 禁止未文档化的不安全块
+    "clippy::unnecessary_self_imports",        # 禁止不必要的 self 导入
+    "clippy::unneeded_field_pattern",          # 禁止不需要的字段模式
+    "clippy::unreachable",                     # 禁止不可达代码
+    "clippy::unsafe_derive_deserialize",       # 禁止不安全的派生反序列化
+    "clippy::unsafe_removed_from_name",        # 禁止从不安全的名称中移除
+    "clippy::unused_async",                    # 禁止未使用的异步
+    "clippy::unused_peekable",                 # 禁止未使用的 peekable
+    "clippy::unused_rounding",                 # 禁止未使用的舍入
+    "clippy::use_debug",                       # 禁止使用 debug
+    "clippy::use_self",                        # 禁止使用 self
+    "clippy::used_underscore_binding",         # 禁止使用下划线绑定
+    "clippy::useless_let_if_seq",              # 禁止无用的 let if 序列
+    "clippy::useless_transmute",               # 禁止无用的转换
+    "clippy::verbose_bit_mask",                # 禁止冗长的位掩码
+    "clippy::wildcard_dependencies",           # 禁止通配符依赖
+    "clippy::wildcard_enum_match_arm",         # 禁止通配符枚举匹配臂
+    "clippy::wildcard_in_or_patterns",         # 禁止在或模式中使用通配符
+    "clippy::wildcard_imports",                # 禁止通配符导入
+    "clippy::zero_ptr",                        # 禁止零指针
+]
+
+# 特定警告的配置
+[clippy.cognitive_complexity]
+threshold = 25 # 认知复杂度阈值
+
+[clippy.cyclomatic_complexity]
+threshold = 15 # 圈复杂度阈值
+
+[clippy.large_enum_variant]
+threshold = 200 # 大型枚举变体阈值
+
+[clippy.many_single_char_names]
+max = 3 # 单字符名称最大数量
+
+[clippy.module_inception]
+max_depth = 2 # 模块嵌套最大深度
+
+[clippy.too_many_arguments]
+max = 7 # 函数参数最大数量
+
+[clippy.type_complexity]
+max = 50 # 类型复杂度阈值
+
+[clippy.upper_case_acronyms]
+max = 3 # 大写首字母缩写最大长度

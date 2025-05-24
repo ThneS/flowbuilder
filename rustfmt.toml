@@ -1,0 +1,45 @@
+# Rust 代码格式化配置文件
+# 用于统一团队的代码风格
+
+# 使用空格而不是制表符
+use_small_tabs = false
+tab_spaces = 4
+
+# 每行最大长度
+max_width = 100
+
+# 缩进和空格设置
+indent_style = "Block"             # 使用块级缩进
+brace_style = "SameLineWhere"      # where 子句的括号样式
+empty_item_single_line = true      # 空项使用单行
+format_code_in_doc_comments = true # 格式化文档注释中的代码
+format_strings = true              # 格式化字符串
+format_macro_matchers = true       # 格式化宏匹配器
+format_macro_bodies = true         # 格式化宏体
+
+# 导入语句设置
+imports_granularity = "Module"     # 按模块分组导入
+group_imports = "StdExternalCrate" # 标准库和外部 crate 分组
+reorder_imports = true             # 重新排序导入
+reorder_modules = true             # 重新排序模块
+
+# 注释设置
+wrap_comments = true            # 自动换行注释
+comment_width = 100             # 注释最大宽度
+normalize_comments = true       # 规范化注释
+normalize_doc_attributes = true # 规范化文档属性
+
+# 表达式设置
+chain_width = 60                  # 链式调用宽度
+chain_split_single_child = true   # 拆分单子链
+fn_call_width = 60                # 函数调用宽度
+struct_field_align_threshold = 20 # 结构体字段对齐阈值
+struct_lit_single_line = true     # 单行结构体字面量
+struct_variant_width = 35         # 结构体变体宽度
+
+# 其他设置
+edition = "2021"                # Rust 版本
+merge_derives = true            # 合并派生宏
+use_field_init_shorthand = true # 使用字段初始化简写
+use_try_shorthand = true        # 使用 try 简写
+where_single_line = false       # where 子句不使用单行

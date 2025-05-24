@@ -1,0 +1,93 @@
+# Dependabot 配置文件
+# 用于自动更新依赖项
+
+version: 2
+updates:
+  # Rust 依赖更新配置
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - rust
+    commit-message:
+      prefix: chore
+      include: scope
+    reviewers:
+      - ThneS
+    assignees:
+      - ThneS
+    ignore:
+      # 忽略特定依赖的更新
+      - dependency-name: tokio
+        versions: [2.0.0, 2.1.0]
+      - dependency-name: serde
+        versions: [1.0.0]
+      # 忽略开发依赖的更新
+      - dependency-name: criterion
+        update-types: [version-update:semver-minor]
+      - dependency-name: mockall
+        update-types: [version-update:semver-minor]
+
+  # GitHub Actions 更新配置
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope
+    reviewers:
+      - ThneS
+    assignees:
+      - ThneS
+    ignore:
+      - dependency-name: actions/checkout
+        versions: [v2.0.0]
+      - dependency-name: actions/cache
+        versions: [v2.0.0]
+
+  # 安全更新配置
+  security-updates-only: false
+  security-updates:
+    labels:
+      - "security"
+      - "dependencies"
+    reviewers:
+      - "ThneS"
+    assignees:
+      - "ThneS"
+    commit-message:
+      prefix: "security"
+      include: "scope"
+
+  # 版本约束
+  versioning-strategy: auto
+  target-branch: "develop"
+  rebase-strategy: "auto"
+  allow:
+    # 允许的更新类型
+    - dependency-type: "direct"
+      update-types: ["version-update:semver-minor", "version-update:semver-patch"]
+    - dependency-type: "indirect"
+      update-types: ["version-update:semver-patch"]
+
+  # 更新通知
+  notifications:
+    - type: "security_alerts"
+      recipients:
+        - "ThneS"
+    - type: "pull_request"
+      recipients:
+        - "ThneS"
+    - type: "commit"
+      recipients:
+        - "ThneS"

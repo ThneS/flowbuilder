@@ -1,0 +1,61 @@
+# EditorConfig 配置文件
+# 用于统一不同编辑器和 IDE 的编码风格
+
+# 顶层配置文件
+root = true
+
+# 所有文件的默认设置
+[*]
+charset = utf-8                  # 使用 UTF-8 字符编码
+end_of_line = lf                 # 使用 Unix 风格的换行符
+insert_final_newline = true      # 文件末尾插入空行
+trim_trailing_whitespace = true  # 删除行尾空格
+indent_style = space            # 使用空格进行缩进
+indent_size = 4                 # 缩进大小为 4 个空格
+
+# Rust 源文件设置
+[*.rs]
+indent_style = space            # 使用空格进行缩进
+indent_size = 4                 # 缩进大小为 4 个空格
+max_line_length = 100           # 最大行长度为 100 个字符
+
+# Markdown 文件设置
+[*.md]
+trim_trailing_whitespace = false # 保留行尾空格（用于 Markdown 换行）
+max_line_length = off           # 不限制行长度
+
+# TOML 文件设置
+[*.toml]
+indent_style = space            # 使用空格进行缩进
+indent_size = 4                 # 缩进大小为 4 个空格
+
+# YAML 文件设置
+[*.{yml,yaml}]
+indent_style = space            # 使用空格进行缩进
+indent_size = 2                 # 缩进大小为 2 个空格
+
+# JSON 文件设置
+[*.json]
+indent_style = space            # 使用空格进行缩进
+indent_size = 2                 # 缩进大小为 2 个空格
+
+# Shell 脚本设置
+[*.sh]
+indent_style = space            # 使用空格进行缩进
+indent_size = 4                 # 缩进大小为 4 个空格
+end_of_line = lf                # 使用 Unix 风格的换行符
+
+# 配置文件设置
+[*.{conf,config,ini}]
+indent_style = space            # 使用空格进行缩进
+indent_size = 4                 # 缩进大小为 4 个空格
+
+# 文档文件设置
+[*.{txt,text}]
+end_of_line = lf                # 使用 Unix 风格的换行符
+insert_final_newline = true     # 文件末尾插入空行
+trim_trailing_whitespace = true # 删除行尾空格
+
+# 二进制文件设置
+[*.{bin,exe,dll,so,dylib}]
+end_of_line = binary            # 二进制文件不进行行尾处理

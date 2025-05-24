@@ -1,0 +1,161 @@
+# GitHub Actions 发布工作流配置
+# 用于自动化发布流程，包括版本更新、文档生成和发布到 crates.io
+
+name: 发布
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: # 允许手动触发
+    inputs:
+      force_release:
+        description: "强制发布（仅用于测试）"
+        required: true
+        default: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check_stage:
+    name: 检查发布阶段
+    runs-on: ubuntu-latest
+    outputs:
+      can_release: ${{ steps.check.outputs.can_release }}
+
+    steps:
+      - name: 检查是否允许发布
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force_release }}" == "true" ]]; then
+            echo "can_release=true" >> $GITHUB_OUTPUT
+            echo "允许测试发布"
+          else
+            echo "can_release=false" >> $GITHUB_OUTPUT
+            echo "当前处于测试阶段，暂停发布"
+            echo "如需测试发布流程，请使用手动触发并设置 force_release=true"
+          fi
+
+  release:
+    name: 发布
+    needs: check_stage
+    if: needs.check_stage.outputs.can_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: 缓存依赖
+        uses: Swatinem/rust-cache@v2
+
+      - name: 验证 Cargo.toml
+        run: cargo check --manifest-path Cargo.toml
+
+      - name: 运行测试
+        run: cargo test --all-features
+
+      - name: 构建文档
+        run: cargo doc --no-deps --document-private-items
+
+      - name: 准备发布
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "RELEASE_NOTES=$(cat CHANGELOG.md | sed -n "/^## \[$VERSION\]/,/^## \[/p" | sed '$d')" >> $GITHUB_ENV
+          echo "IS_TEST_RELEASE=true" >> $GITHUB_ENV
+
+      - name: 发布到 crates.io
+        if: github.event_name == 'workflow_dispatch' # 测试阶段只允许手动发布
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: 创建 GitHub 发布
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ env.RELEASE_VERSION }} (测试版)
+          body: |
+            ${{ env.RELEASE_NOTES }}
+
+            > ⚠️ 注意：这是一个测试版本，不建议在生产环境使用。
+          draft: true # 测试阶段默认创建草稿
+          prerelease: true # 标记为预发布版本
+          files: |
+            target/doc/**/*
+
+      - name: 更新开发分支
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'github-actions@github.com'
+          git checkout -b develop
+          git merge --no-ff $GITHUB_REF -m "chore: 合并测试版本 ${{ env.RELEASE_VERSION }}"
+          git push origin develop
+
+      - name: 创建里程碑
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: milestone-${{ env.RELEASE_VERSION }}
+          name: 测试里程碑 v${{ env.RELEASE_VERSION }}
+          body: |
+            ## 测试功能
+            ${{ env.RELEASE_NOTES }}
+
+            ## 测试计划
+            - [ ] 收集测试反馈
+            - [ ] 修复发现的问题
+            - [ ] 完善文档
+            - [ ] 准备正式发布
+          draft: true
+          prerelease: true
+
+  notify:
+    name: 通知
+    needs: [check_stage, release]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: 发送测试发布通知
+        if: success() && needs.check_stage.outputs.can_release == 'true'
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: |
+            🧪 FlowBuilder 测试版本 ${{ github.ref_name }} 已创建
+            📦 下载: https://crates.io/crates/flowbuilder
+            📚 文档: https://docs.rs/flowbuilder
+            ⚠️ 注意：这是一个测试版本
+            🔄 更新日志: https://github.com/ThneS/flowbuilder/blob/main/CHANGELOG.md
+
+      - name: 发送发布被阻止通知
+        if: success() && needs.check_stage.outputs.can_release == 'false'
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: |
+            ⏸️ FlowBuilder 发布被阻止
+            ℹ️ 原因：当前处于测试阶段
+            📝 如需测试发布，请使用手动触发并设置 force_release=true
+
+      - name: 发送失败通知
+        if: failure()
+        uses: Ilshidur/action-discord@master
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        with:
+          args: |
+            ❌ FlowBuilder 发布失败
+            🔍 查看详情: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
