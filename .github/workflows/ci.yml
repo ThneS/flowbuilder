@@ -20,12 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        rust: [stable, beta]
+        rust: [stable]
         include:
           - rust: stable
             toolchain: stable
-          - rust: beta
-            toolchain: beta
 
     steps:
       - uses: actions/checkout@v4
