@@ -38,8 +38,10 @@ struct_lit_single_line = true     # 单行结构体字面量
 struct_variant_width = 35         # 结构体变体宽度
 
 # 其他设置
-edition = "2021"                # Rust 版本
+edition = "2024"                # Rust 版本
 merge_derives = true            # 合并派生宏
 use_field_init_shorthand = true # 使用字段初始化简写
 use_try_shorthand = true        # 使用 try 简写
 where_single_line = false       # where 子句不使用单行
+hard_tabs = false
+newline_style = "Unix"
