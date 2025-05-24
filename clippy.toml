@@ -1,5 +1,0 @@
-# 允许 main 函数有未使用的变量
-allow_unused_variables_in_main = true
-
-# 禁用特定 lint
-warn_about_specific_lints = ["clippy::unwrap_used"]
