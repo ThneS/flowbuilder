@@ -2,67 +2,11 @@
 
 本目录包含了 FlowBuilder 的各种使用示例，展示了框架的主要特性和最佳实践。
 
-## 示例列表
+## 示例列表（已移除）
 
-1. [基本用法](basic_usage.rs)
-   - 展示基本的流程构建
-   - 命名步骤
-   - 条件执行
-   - 等待逻辑
-   - 错误处理
+## 运行示例（已移除）
 
-2. [子流程示例](subflow_example.rs)
-   - 创建和使用子流程
-   - 条件子流程
-   - 子流程错误处理
-   - 上下文共享
-
-3. [并行执行](parallel_execution.rs)
-   - 并行任务执行
-   - 任务结果汇总
-   - 异步操作处理
-
-## 运行示例
-
-要运行示例，使用以下命令：
-
-```bash
-# 运行基本用法示例
-cargo run --example basic_usage
-
-# 运行子流程示例
-cargo run --example subflow_example
-
-# 运行并行执行示例
-cargo run --example parallel_execution
-```
-
-## 示例说明
-
-### 基本用法示例
-
-这个示例展示了 FlowBuilder 的核心功能：
-- 创建和配置流程
-- 添加命名步骤
-- 使用条件执行
-- 实现等待逻辑
-- 处理错误
-
-### 子流程示例
-
-展示了如何使用子流程组织复杂的业务逻辑：
-- 定义和调用子流程
-- 在子流程中处理错误
-- 使用条件子流程
-- 管理上下文数据
-
-### 并行执行示例
-
-演示了如何并行执行多个任务：
-- 定义异步任务
-- 并行执行任务
-- 收集和汇总结果
-- 处理并发操作
+## 示例说明（已移除）
 
 ## 最佳实践
 
@@ -99,3 +43,7 @@ cargo run --example parallel_execution
 - [入门指南](../docs/getting-started.md)
 - [高级用法](../docs/advanced-usage.md)
 - [API 参考](../docs/api-reference.md)
+
+## 示例文件（已移除）
+
+- 示例文件（如 basic_usage.rs、subflow_example.rs、parallel_execution.rs）已移除，请参考项目文档或后续更新。

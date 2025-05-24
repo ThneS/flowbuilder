@@ -1,6 +1,6 @@
 # FlowBuilder 高级用法
 
-## 子流程
+## 子流程（已移除）：
 
 FlowBuilder 支持创建嵌套的子流程，这对于组织复杂的业务逻辑非常有用。
 
@@ -280,3 +280,6 @@ mod integration_tests {
    - 为每个步骤编写单元测试
    - 编写集成测试验证完整流程
    - 使用模拟对象测试外部依赖
+
+示例文件（已移除）：
+- 示例文件（如 subflow_example.rs、parallel_execution.rs）已移除，请参考项目文档或后续更新。
