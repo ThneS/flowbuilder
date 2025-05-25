@@ -1,10 +1,10 @@
-use crate::{
-    context::{FlowContext, SharedContext},
-    step::Step,
-};
+use crate::context::{FlowContext, SharedContext};
 use anyhow::{Result, anyhow};
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
+
+type StepFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
+pub type Step = Box<dyn FnOnce(SharedContext) -> StepFuture + Send>;
 
 pub struct FlowBuilder {
     pub steps: Vec<Step>,

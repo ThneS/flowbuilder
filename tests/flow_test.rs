@@ -1,6 +1,11 @@
-use flowbuilder::*;
+#[cfg(feature = "logger")]
+use flowbuilder::prelude::Logger;
+use flowbuilder::prelude::{FlowBuilder, SharedContext};
 
-async fn run(ctx: SharedContext) -> anyhow::Result<()> {
+async fn run(_ctx: SharedContext) -> anyhow::Result<()> {
+    #[cfg(feature = "logger")]
+    Logger::new().info("run");
+    #[cfg(not(feature = "logger"))]
     println!("run");
     Ok(())
 }
@@ -10,7 +15,7 @@ async fn check(ctx: SharedContext) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn fail(ctx: SharedContext) -> anyhow::Result<()> {
+async fn fail(_ctx: SharedContext) -> anyhow::Result<()> {
     Err(anyhow::anyhow!("fail"))
 }
 
