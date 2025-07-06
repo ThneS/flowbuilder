@@ -1,8 +1,8 @@
-use crate::config::{WorkflowConfig, ActionType, ActionDefinition};
+use crate::config::{ActionDefinition, ActionType, WorkflowConfig};
 use crate::expression::ExpressionEvaluator;
-use flowbuilder_core::{FlowBuilder, Step, StepFuture};
+use anyhow::{Context, Result};
 use flowbuilder_context::SharedContext;
-use anyhow::{Result, Context};
+use flowbuilder_core::{FlowBuilder, Step, StepFuture};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,10 +21,7 @@ impl YamlFlowBuilder {
         evaluator.set_env_vars(config.workflow.env.clone());
         evaluator.set_flow_vars(config.workflow.vars.clone());
 
-        Ok(Self {
-            config,
-            evaluator,
-        })
+        Ok(Self { config, evaluator })
     }
 
     /// 构建 FlowBuilder 实例
@@ -43,14 +40,19 @@ impl YamlFlowBuilder {
     }
 
     /// 从动作定义创建步骤闭包 (兼容 FnMut)
-    fn create_step_closure_from_action(&self, action: &ActionDefinition) -> Result<impl FnMut(SharedContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + 'static> {
+    fn create_step_closure_from_action(
+        &self,
+        action: &ActionDefinition,
+    ) -> Result<
+        impl FnMut(SharedContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + 'static,
+    > {
         let action_clone = action.clone();
         let evaluator_clone = self.evaluator.clone();
-        
+
         Ok(move |ctx: SharedContext| {
             let action = action_clone.clone();
             let evaluator = evaluator_clone.clone();
-            
+
             Box::pin(async move {
                 match action.action_type {
                     ActionType::Builtin => {
@@ -60,26 +62,27 @@ impl YamlFlowBuilder {
                             let mut guard = ctx.lock().await;
                             guard.set_output(key, format!("{:?}", value));
                         }
-                    },
+                    }
                     ActionType::Cmd => {
                         println!("执行命令动作: {}", action.id);
                         // 处理参数
                         for (param_name, param) in action.parameters {
-                            let evaluated_value = evaluator.evaluate(&format!("{:?}", param.value))
+                            let evaluated_value = evaluator
+                                .evaluate(&format!("{:?}", param.value))
                                 .unwrap_or(param.value.clone());
                             println!("  参数 {}: {:?}", param_name, evaluated_value);
                         }
-                    },
+                    }
                     ActionType::Http => {
                         println!("执行HTTP动作: {}", action.id);
                         // 模拟HTTP请求
                         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-                    },
+                    }
                     ActionType::Wasm => {
                         println!("执行WASM动作: {}", action.id);
                         // 模拟WASM执行
                         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                    },
+                    }
                 }
                 Ok(())
             })
@@ -142,7 +145,8 @@ impl YamlFlowBuilder {
 
                 // 处理参数
                 for (param_name, param) in parameters {
-                    let evaluated_value = evaluator.evaluate(&format!("{:?}", param.value))
+                    let evaluated_value = evaluator
+                        .evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
                     println!("  参数 {}: {:?}", param_name, evaluated_value);
                 }
@@ -179,7 +183,8 @@ impl YamlFlowBuilder {
 
                 // 处理参数（URL, 方法, 头部等）
                 for (param_name, param) in parameters {
-                    let evaluated_value = evaluator.evaluate(&param.value.to_string())
+                    let evaluated_value = evaluator
+                        .evaluate(&param.value.to_string())
                         .unwrap_or(param.value.clone());
                     println!("  HTTP 参数 {}: {:?}", param_name, evaluated_value);
                 }
@@ -216,7 +221,8 @@ impl YamlFlowBuilder {
 
                 // 处理参数
                 for (param_name, param) in parameters {
-                    let evaluated_value = evaluator.evaluate(&param.value.to_string())
+                    let evaluated_value = evaluator
+                        .evaluate(&param.value.to_string())
                         .unwrap_or(param.value.clone());
                     println!("  WASM 参数 {}: {:?}", param_name, evaluated_value);
                 }
@@ -317,7 +323,7 @@ workflow:
 
         // 创建上下文并执行流程
         let context = Arc::new(tokio::sync::Mutex::new(
-            flowbuilder_context::FlowContext::default()
+            flowbuilder_context::FlowContext::default(),
         ));
 
         let flow = flow_builder.build();

@@ -137,9 +137,11 @@ impl PartialOrd for ScheduledTask {
 
 impl Ord for ScheduledTask {
     fn cmp(&self, other: &Self) -> Ordering {
-        // 优先级高的排在前面，创建时间早的排在前面
-        other.priority.cmp(&self.priority)
-            .then_with(|| self.created_at.cmp(&other.created_at))
+        // 优先级高的排在前面（数值大的优先级高）
+        // BinaryHeap 是最大堆，所以我们让高优先级的任务有更大的排序值
+        self.priority
+            .cmp(&other.priority)
+            .then_with(|| other.created_at.cmp(&self.created_at)) // 创建时间早的优先
     }
 }
 
@@ -214,7 +216,7 @@ impl TaskScheduler {
     /// 创建新的任务调度器
     pub fn new(config: SchedulerConfig) -> Self {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_tasks));
-        
+
         Self {
             config,
             task_queue: Arc::new(Mutex::new(BinaryHeap::new())),
@@ -235,7 +237,7 @@ impl TaskScheduler {
     pub async fn submit_task(&self, task: ScheduledTask) -> Result<Uuid> {
         let task_id = task.id;
         let task_name = task.name.clone();
-        
+
         // 更新统计信息
         {
             let mut stats = self.stats.lock().await;
@@ -307,7 +309,7 @@ impl TaskScheduler {
     /// 检查任务依赖
     async fn check_dependencies(&self, dependencies: &[Uuid]) -> bool {
         let task_status = self.task_status.lock().await;
-        
+
         for dep_id in dependencies {
             if let Some(dep_task) = task_status.get(dep_id) {
                 if dep_task.status != TaskStatus::Completed {
@@ -318,7 +320,7 @@ impl TaskScheduler {
                 return false;
             }
         }
-        
+
         true
     }
 
@@ -326,9 +328,12 @@ impl TaskScheduler {
     pub async fn execute_task(&self, mut task: ScheduledTask) -> Result<()> {
         let task_id = task.id;
         let task_name = task.name.clone();
-        
+
         // 获取执行许可
-        let _permit = self.semaphore.acquire().await
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
             .map_err(|e| anyhow::anyhow!("获取执行许可失败: {}", e))?;
 
         // 更新任务状态
@@ -376,7 +381,7 @@ impl TaskScheduler {
         {
             let mut stats = self.stats.lock().await;
             stats.running_tasks = stats.running_tasks.saturating_sub(1);
-            
+
             match final_status {
                 TaskStatus::Completed => stats.completed_tasks += 1,
                 TaskStatus::Failed => stats.failed_tasks += 1,
@@ -403,7 +408,7 @@ impl TaskScheduler {
         }
 
         println!("任务调度器启动，策略: {:?}", self.config.strategy);
-        
+
         // 简化的调度循环
         loop {
             {
@@ -449,7 +454,7 @@ mod tests {
         let scheduler = TaskScheduler::with_default_config();
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
-        
+
         let task = ScheduledTask {
             id: Uuid::new_v4(),
             name: "test_task".to_string(),
@@ -469,24 +474,30 @@ mod tests {
         };
 
         let task_id = scheduler.submit_task(task).await.unwrap();
-        
+
         // 验证任务已提交
-        assert_eq!(scheduler.get_task_status(task_id).await, Some(TaskStatus::Pending));
-        
+        assert_eq!(
+            scheduler.get_task_status(task_id).await,
+            Some(TaskStatus::Pending)
+        );
+
         // 执行任务
         if let Some(task) = scheduler.get_next_task().await {
             scheduler.execute_task(task).await.unwrap();
         }
-        
+
         // 验证任务完成
         assert_eq!(counter.load(Ordering::SeqCst), 1);
-        assert_eq!(scheduler.get_task_status(task_id).await, Some(TaskStatus::Completed));
+        assert_eq!(
+            scheduler.get_task_status(task_id).await,
+            Some(TaskStatus::Completed)
+        );
     }
 
     #[tokio::test]
     async fn test_scheduler_priority_ordering() {
         let scheduler = TaskScheduler::with_default_config();
-        
+
         // 创建不同优先级的任务
         let tasks = vec![
             (Priority::Low, "低优先级"),
@@ -517,7 +528,7 @@ mod tests {
         // 获取任务，应该按优先级排序
         let first_task = scheduler.get_next_task().await.unwrap();
         assert_eq!(first_task.priority, Priority::Critical);
-        
+
         let second_task = scheduler.get_next_task().await.unwrap();
         assert_eq!(second_task.priority, Priority::High);
     }

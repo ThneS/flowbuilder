@@ -136,7 +136,7 @@ impl FlowNode {
             retry_config: None,
         }
     }
-    
+
     /// 设置节点名称
     pub fn name(mut self, name: String) -> Self {
         self.name = name;
@@ -310,7 +310,8 @@ impl FlowOrchestrator {
     pub async fn restore_checkpoint(&self, checkpoint_id: &str) -> Result<()> {
         let checkpoint = {
             let checkpoints = self.checkpoints.lock().await;
-            checkpoints.get(checkpoint_id)
+            checkpoints
+                .get(checkpoint_id)
                 .ok_or_else(|| anyhow::anyhow!("检查点不存在: {}", checkpoint_id))?
                 .clone()
         };
@@ -342,7 +343,9 @@ impl FlowOrchestrator {
 
     /// 执行单个节点
     async fn execute_node(&self, node_id: &str) -> Result<FlowContext> {
-        let node = self.nodes.get(node_id)
+        let node = self
+            .nodes
+            .get(node_id)
             .ok_or_else(|| anyhow::anyhow!("节点不存在: {}", node_id))?
             .clone();
 
@@ -368,7 +371,11 @@ impl FlowOrchestrator {
 
         let start_time = Instant::now();
         let mut attempts = 0;
-        let retry_config = node.retry_config.as_ref().unwrap_or(&RetryConfig::default()).clone();
+        let retry_config = node
+            .retry_config
+            .as_ref()
+            .unwrap_or(&RetryConfig::default())
+            .clone();
 
         loop {
             attempts += 1;
@@ -377,17 +384,17 @@ impl FlowOrchestrator {
                 // 执行流程 - 实际执行，但由于 Flow 所有权问题，我们暂时模拟执行
                 // 在真实场景中，应该重新设计 Flow 以支持多次执行
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                
+
                 // 为了测试，我们手动执行测试中的步骤逻辑
                 // 这是一个临时解决方案
                 let context = FlowContext::default();
-                
+
                 // 模拟执行流程中的步骤
                 // 实际上应该调用 flow.execute() 但由于所有权问题我们无法这样做
                 if self.config.verbose_logging {
                     println!("模拟执行节点 {} 的流程", node_id);
                 }
-                
+
                 Ok(context)
             } else {
                 // 空节点，直接返回成功
@@ -409,7 +416,11 @@ impl FlowOrchestrator {
                     }
 
                     if self.config.verbose_logging {
-                        println!("节点 {} 执行成功，耗时: {:?}", node_id, start_time.elapsed());
+                        println!(
+                            "节点 {} 执行成功，耗时: {:?}",
+                            node_id,
+                            start_time.elapsed()
+                        );
                     }
 
                     return Ok(context);
@@ -418,10 +429,16 @@ impl FlowOrchestrator {
                     // 执行失败，检查重试策略
                     if attempts < retry_config.max_attempts as usize {
                         let delay = self.calculate_retry_delay(&retry_config, attempts);
-                        
+
                         if self.config.verbose_logging {
-                            println!("节点 {} 执行失败，{} 秒后重试 ({}/{}): {}", 
-                                   node_id, delay.as_secs(), attempts, retry_config.max_attempts, e);
+                            println!(
+                                "节点 {} 执行失败，{} 秒后重试 ({}/{}): {}",
+                                node_id,
+                                delay.as_secs(),
+                                attempts,
+                                retry_config.max_attempts,
+                                e
+                            );
                         }
 
                         tokio::time::sleep(delay).await;
@@ -458,7 +475,10 @@ impl FlowOrchestrator {
 
                 Err(error.context(format!("节点 {} 执行失败", node.id)))
             }
-            ErrorRecoveryStrategy::Retry { max_attempts: _, delay: _ } => {
+            ErrorRecoveryStrategy::Retry {
+                max_attempts: _,
+                delay: _,
+            } => {
                 // 重试逻辑已在 execute_node 中处理
                 Err(error)
             }
@@ -466,7 +486,7 @@ impl FlowOrchestrator {
                 if self.config.verbose_logging {
                     println!("节点 {} 失败，回滚到检查点: {}", node.id, checkpoint_id);
                 }
-                
+
                 self.restore_checkpoint(checkpoint_id).await?;
                 Ok(FlowContext::default())
             }
@@ -531,7 +551,9 @@ impl FlowOrchestrator {
             // 检查依赖是否满足
             if let Some(deps) = self.dependencies.get(node_id) {
                 let all_deps_satisfied = deps.iter().all(|dep| {
-                    states.get(dep).map_or(false, |state| *state == FlowState::Completed)
+                    states
+                        .get(dep)
+                        .map_or(false, |state| *state == FlowState::Completed)
                 });
 
                 if all_deps_satisfied {
@@ -561,18 +583,21 @@ impl FlowOrchestrator {
 
         loop {
             let ready_nodes = self.get_ready_nodes().await;
-            
+
             if ready_nodes.is_empty() {
                 // 检查是否有未完成的节点
                 let states = self.node_states.read().await;
                 let has_pending = self.nodes.keys().any(|node_id| {
-                    !matches!(states.get(node_id), Some(FlowState::Completed | FlowState::Failed | FlowState::Cancelled))
+                    !matches!(
+                        states.get(node_id),
+                        Some(FlowState::Completed | FlowState::Failed | FlowState::Cancelled)
+                    )
                 });
-                
+
                 if !has_pending {
                     break; // 所有节点都已完成
                 }
-                
+
                 // 等待一段时间再检查
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 continue;
