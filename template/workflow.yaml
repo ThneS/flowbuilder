@@ -1,11 +1,12 @@
 workflow:
   version: 1.0
-  env:
+  env: # env 是环境变量的集合，不可在运行中修改
     FLOWBUILDER_ENV: "production"
-  vars:
+  vars: # vars 是流程变量的集合，可以在运行中修改
     name: "FlowBuilder Example"
     description: "This is an example workflow for FlowBuilder."
-  template: # 定义函数和变量以及流程的基本结构
+  template: # 因为支持的函数和操作类型太多了，使用template来定义一个基础模板
+  # template 是一个可复用的模板，可以在多个工作流中使用
     id: base_template
     name: base
     version: 1.0
@@ -21,7 +22,7 @@ workflow:
               name: Example Action
               description: This action serves as an example.
               flow:
-                next: ${task2.example_action_2} # ${} 是过程变量，用于存放到flowcontext中
+                next: ${task2.example_action_2} # ${} 是过程变量，用于存放到flowcontext中，此处指的是下一步需要执行的action
                 next_if: ${status.name == "FlowBuilder Example"}
                 while_util:
                   condition: ${status.description != ""}

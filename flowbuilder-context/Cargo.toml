@@ -1,0 +1,16 @@
+[package]
+name = "flowbuilder-context"
+version = "0.0.2"
+edition = "2021"
+description = "Context management for FlowBuilder"
+authors = ["Thne"]
+license = "Apache-2.0"
+
+[dependencies]
+uuid = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true, optional = true }
+
+[features]
+default = []
+logger = ["dep:tracing"]

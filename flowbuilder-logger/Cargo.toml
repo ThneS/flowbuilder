@@ -1,0 +1,13 @@
+[package]
+name = "flowbuilder-logger"
+version = "0.0.2"
+edition = "2021"
+description = "Logging and tracing support for FlowBuilder"
+authors = ["Thne"]
+license = "Apache-2.0"
+
+[dependencies]
+flowbuilder-context = { path = "../flowbuilder-context", features = ["logger"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { workspace = true }

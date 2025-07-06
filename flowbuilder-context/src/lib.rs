@@ -1,3 +1,7 @@
+//! # FlowBuilder Context
+//!
+//! Context management and shared state for FlowBuilder
+
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
@@ -66,7 +70,7 @@ impl FlowContext {
         }
     }
 
-    // 创建快照
+    /// 创建快照
     pub fn create_snapshot(
         &mut self,
         snapshot_id: String,
@@ -86,14 +90,16 @@ impl FlowContext {
         };
 
         self.snapshots.insert(snapshot_id.clone(), snapshot);
-        println!(
-            "[trace_id:{}] Created snapshot: {}",
-            self.trace_id, snapshot_id
-        );
+
+        #[cfg(feature = "logger")]
+        tracing::info!("[trace_id:{}] Created snapshot: {}", self.trace_id, snapshot_id);
+        #[cfg(not(feature = "logger"))]
+        println!("[trace_id:{}] Created snapshot: {}", self.trace_id, snapshot_id);
+
         Ok(())
     }
 
-    // 回滚到快照
+    /// 回滚到快照
     pub fn rollback_to_snapshot(&mut self, snapshot_id: &str) -> Result<(), String> {
         let snapshot = self
             .snapshots
@@ -109,6 +115,18 @@ impl FlowContext {
         self.ok = snapshot.ok;
         self.errors = snapshot.errors;
 
+        #[cfg(feature = "logger")]
+        tracing::info!(
+            "[trace_id:{}] Rolled back to snapshot '{}' ({}). Variables: {} -> {}, Errors: {} -> {}",
+            self.trace_id,
+            snapshot_id,
+            snapshot.description,
+            old_variables_count,
+            self.variables.len(),
+            old_errors_count,
+            self.errors.len()
+        );
+        #[cfg(not(feature = "logger"))]
         println!(
             "[trace_id:{}] Rolled back to snapshot '{}' ({}). Variables: {} -> {}, Errors: {} -> {}",
             self.trace_id,
@@ -123,20 +141,21 @@ impl FlowContext {
         Ok(())
     }
 
-    // 删除快照
+    /// 删除快照
     pub fn remove_snapshot(&mut self, snapshot_id: &str) -> Result<(), String> {
         self.snapshots
             .remove(snapshot_id)
             .ok_or_else(|| format!("Snapshot '{}' not found", snapshot_id))?;
 
-        println!(
-            "[trace_id:{}] Removed snapshot: {}",
-            self.trace_id, snapshot_id
-        );
+        #[cfg(feature = "logger")]
+        tracing::info!("[trace_id:{}] Removed snapshot: {}", self.trace_id, snapshot_id);
+        #[cfg(not(feature = "logger"))]
+        println!("[trace_id:{}] Removed snapshot: {}", self.trace_id, snapshot_id);
+
         Ok(())
     }
 
-    // 列出所有快照
+    /// 列出所有快照
     pub fn list_snapshots(&self) -> Vec<&ContextSnapshot> {
         self.snapshots.values().collect()
     }
@@ -151,10 +170,11 @@ impl FlowContext {
             trace_id: self.trace_id.clone(),
         };
         self.step_logs.push(step_log);
-        println!(
-            "[trace_id:{}] [step:{}] starting...",
-            self.trace_id, step_name
-        );
+
+        #[cfg(feature = "logger")]
+        tracing::info!("[trace_id:{}] [step:{}] starting...", self.trace_id, step_name);
+        #[cfg(not(feature = "logger"))]
+        println!("[trace_id:{}] [step:{}] starting...", self.trace_id, step_name);
     }
 
     pub fn end_step_success(&mut self, step_name: &str) {
@@ -167,10 +187,11 @@ impl FlowContext {
             log.end_time = Some(std::time::Instant::now());
             log.status = StepStatus::Success;
             let duration = log.end_time.unwrap().duration_since(log.start_time);
-            println!(
-                "[trace_id:{}] [step:{}] completed successfully in {:?}",
-                self.trace_id, step_name, duration
-            );
+
+            #[cfg(feature = "logger")]
+            tracing::info!("[trace_id:{}] [step:{}] completed successfully in {:?}", self.trace_id, step_name, duration);
+            #[cfg(not(feature = "logger"))]
+            println!("[trace_id:{}] [step:{}] completed successfully in {:?}", self.trace_id, step_name, duration);
         }
     }
 
@@ -185,10 +206,11 @@ impl FlowContext {
             log.status = StepStatus::Failed;
             log.error_message = Some(error.to_string());
             let duration = log.end_time.unwrap().duration_since(log.start_time);
-            println!(
-                "[trace_id:{}] [step:{}] failed after {:?}: {}",
-                self.trace_id, step_name, duration, error
-            );
+
+            #[cfg(feature = "logger")]
+            tracing::error!("[trace_id:{}] [step:{}] failed after {:?}: {}", self.trace_id, step_name, duration, error);
+            #[cfg(not(feature = "logger"))]
+            println!("[trace_id:{}] [step:{}] failed after {:?}: {}", self.trace_id, step_name, duration, error);
         }
         self.errors
             .push(format!("[{}] {}: {}", self.trace_id, step_name, error));
@@ -204,10 +226,11 @@ impl FlowContext {
             log.end_time = Some(std::time::Instant::now());
             log.status = StepStatus::Skipped;
             let duration = log.end_time.unwrap().duration_since(log.start_time);
-            println!(
-                "[trace_id:{}] [step:{}] skipped after {:?}: {}",
-                self.trace_id, step_name, duration, reason
-            );
+
+            #[cfg(feature = "logger")]
+            tracing::warn!("[trace_id:{}] [step:{}] skipped after {:?}: {}", self.trace_id, step_name, duration, reason);
+            #[cfg(not(feature = "logger"))]
+            println!("[trace_id:{}] [step:{}] skipped after {:?}: {}", self.trace_id, step_name, duration, reason);
         }
     }
 
@@ -221,20 +244,22 @@ impl FlowContext {
             log.end_time = Some(std::time::Instant::now());
             log.status = StepStatus::Timeout;
             let duration = log.end_time.unwrap().duration_since(log.start_time);
-            println!(
-                "[trace_id:{}] [step:{}] timed out after {:?}",
-                self.trace_id, step_name, duration
-            );
+
+            #[cfg(feature = "logger")]
+            tracing::error!("[trace_id:{}] [step:{}] timed out after {:?}", self.trace_id, step_name, duration);
+            #[cfg(not(feature = "logger"))]
+            println!("[trace_id:{}] [step:{}] timed out after {:?}", self.trace_id, step_name, duration);
         }
         self.errors
             .push(format!("[{}] {}: timeout", self.trace_id, step_name));
     }
 
     pub fn set_variable(&mut self, key: String, value: String) {
-        println!(
-            "[trace_id:{}] setting variable {} = {}",
-            self.trace_id, key, value
-        );
+        #[cfg(feature = "logger")]
+        tracing::debug!("[trace_id:{}] setting variable {} = {}", self.trace_id, key, value);
+        #[cfg(not(feature = "logger"))]
+        println!("[trace_id:{}] setting variable {} = {}", self.trace_id, key, value);
+
         self.variables.insert(key, value);
     }
 
@@ -243,7 +268,13 @@ impl FlowContext {
     }
 
     pub fn print_summary(&self) {
-        println!("\n=== Flow Summary [trace_id: {}] ===", self.trace_id);
+        let summary = format!("\n=== Flow Summary [trace_id: {}] ===", self.trace_id);
+
+        #[cfg(feature = "logger")]
+        tracing::info!("{}", summary);
+        #[cfg(not(feature = "logger"))]
+        println!("{}", summary);
+
         println!("Total steps: {}", self.step_logs.len());
 
         let success_count = self

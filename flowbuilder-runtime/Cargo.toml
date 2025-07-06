@@ -1,0 +1,15 @@
+[package]
+name = "flowbuilder-runtime"
+version = "0.0.2"
+edition = "2021"
+description = "Advanced runtime features for FlowBuilder"
+authors = ["Thne"]
+license = "Apache-2.0"
+
+[dependencies]
+flowbuilder-core = { path = "../flowbuilder-core" }
+flowbuilder-context = { path = "../flowbuilder-context" }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+futures = "0.3.31"

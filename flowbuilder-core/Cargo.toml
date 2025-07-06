@@ -1,0 +1,19 @@
+[package]
+name = "flowbuilder-core"
+version = "0.0.2"
+edition = "2021"
+description = "Core flow building functionality for FlowBuilder"
+authors = ["Thne"]
+license = "Apache-2.0"
+
+[dependencies]
+flowbuilder-context = { path = "../flowbuilder-context" }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true, optional = true }
+
+[features]
+default = []
+macros = []
+logger = ["flowbuilder-context/logger", "dep:tracing"]
+runtime = []

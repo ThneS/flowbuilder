@@ -149,6 +149,6 @@ docs: 更新 API 文档
 
 - 项目维护者：ThneS
 - GitHub Issues：https://github.com/ThneS/flowbuilder/issues
-- 邮件：your-email@example.com
+- thneonl@outlook.com
 
 感谢你的贡献！
