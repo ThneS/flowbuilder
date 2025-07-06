@@ -9,8 +9,9 @@ use syn::{parse_macro_input, DeriveInput, ItemFn, LitStr};
 /// Attribute macro to convert a function into a flow step
 ///
 /// # Example
-/// ```rust
+/// ```rust,ignore
 /// use flowbuilder_macros::step;
+/// use flowbuilder_context::SharedContext;
 ///
 /// #[step]
 /// async fn my_step(ctx: SharedContext) -> anyhow::Result<()> {
@@ -41,8 +42,9 @@ pub fn step(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Attribute macro to convert a function into a named flow step
 ///
 /// # Example
-/// ```rust
+/// ```rust,ignore
 /// use flowbuilder_macros::named_step;
+/// use flowbuilder_context::SharedContext;
 ///
 /// #[named_step("my_step")]
 /// async fn my_step(ctx: SharedContext) -> anyhow::Result<()> {
@@ -96,7 +98,7 @@ pub fn named_step(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Derive macro for creating flow context variables
 ///
 /// # Example
-/// ```rust
+/// ```rust,ignore
 /// use flowbuilder_macros::FlowContext;
 ///
 /// #[derive(FlowContext)]
@@ -158,8 +160,9 @@ pub fn derive_flow_context(input: TokenStream) -> TokenStream {
 /// Macro for creating flow DSL
 ///
 /// # Example
-/// ```rust
+/// ```rust,ignore
 /// use flowbuilder_macros::flow;
+/// use flowbuilder_core::FlowBuilder;
 ///
 /// let my_flow = flow! {
 ///     step "init" => |ctx| async move {

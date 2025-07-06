@@ -1,7 +1,7 @@
 use anyhow::Result;
-use flowbuilder::prelude::*;
-use std::sync::Arc;
-use std::time::Duration;
+
+#[cfg(feature = "runtime")]
+use {flowbuilder::prelude::*, std::sync::Arc, std::time::Duration};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,7 +48,6 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "runtime")]
 #[cfg(feature = "runtime")]
 async fn demo_basic_parallel() -> Result<()> {
     let executor = ParallelExecutor::new();
