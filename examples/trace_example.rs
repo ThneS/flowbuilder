@@ -176,5 +176,126 @@ async fn main() -> Result<()> {
         .run_all_with_trace_id("snapshot-demo-789".to_string())
         .await?;
 
+    println!("\n{}\n", "=".repeat(50));
+
+    // 示例 4: 条件跳转 (Switch-Case)
+    println!("4. Conditional Branching (Switch-Case) Example:");
+    let switch_flow = FlowBuilder::new()
+        .named_step("setup_user_type", |ctx| async move {
+            let mut guard = ctx.lock().await;
+            guard.set_variable("user_type".to_string(), "admin".to_string());
+            guard.set_variable("action".to_string(), "delete".to_string());
+            println!("User type set to 'admin' and action set to 'delete'");
+            Ok(())
+        })
+        // 使用 boxed match 风格的条件分支
+        .step_switch_match_boxed("user_type_switch", |ctx| {
+            let user_type = ctx.get_variable("user_type").cloned().unwrap_or_else(|| "unknown".to_string());
+            match user_type.as_str() {
+                "admin" => Some(Box::new(|| FlowBuilder::new()
+                    .named_step("admin_permissions", |ctx| async move {
+                        let guard = ctx.lock().await;
+                        let action = guard.get_variable("action").cloned().unwrap_or_else(|| "view".to_string());
+                        println!("Admin user performing action: {}", action);
+                        if action == "delete" {
+                            println!("Admin has delete permissions - action allowed");
+                        }
+                        Ok(())
+                    })
+                ) as Box<dyn Fn() -> FlowBuilder + Send>),
+                "user" => Some(Box::new(|| FlowBuilder::new()
+                    .named_step("user_permissions", |_ctx| async move {
+                        println!("Regular user - limited permissions");
+                        Ok(())
+                    })
+                ) as Box<dyn Fn() -> FlowBuilder + Send>),
+                "guest" => Some(Box::new(|| FlowBuilder::new()
+                    .named_step("guest_permissions", |_ctx| async move {
+                        println!("Guest user - read-only access");
+                        Ok(())
+                    })
+                ) as Box<dyn Fn() -> FlowBuilder + Send>),
+                _ => Some(Box::new(|| FlowBuilder::new()
+                    .named_step("default_permissions", |_ctx| async move {
+                        println!("Unknown user type - using default permissions");
+                        Ok(())
+                    })
+                ) as Box<dyn Fn() -> FlowBuilder + Send>),
+            }
+        })
+        // 使用原有的 match 风格的条件分支，但简化
+        .step_switch_match("action_switch", |ctx| {
+            let action = ctx.get_variable("action").cloned().unwrap_or_else(|| "view".to_string());
+            match action.as_str() {
+                "delete" => Some(|| FlowBuilder::new()
+                    .named_step("delete_action", |_ctx| async move {
+                        println!("Executing delete action with proper authorization");
+                        Ok(())
+                    })
+                ),
+                _ => None, // 其他情况跳过
+            }
+        });
+
+    switch_flow
+        .run_all_with_trace_id("switch-demo-456".to_string())
+        .await?;
+
+    println!("\n{}\n", "=".repeat(50));
+
+    // 示例 5: 全局错误处理器
+    println!("5. Global Error Handler Example:");
+    let error_flow = FlowBuilder::new()
+        .named_step("normal_step", |ctx| async move {
+            let mut guard = ctx.lock().await;
+            guard.set_variable("step_count".to_string(), "1".to_string());
+            println!("Normal step executed successfully");
+            Ok(())
+        })
+        .named_step("failing_step", |_ctx| async move {
+            println!("This step will fail...");
+            anyhow::bail!("Simulated failure in step");
+        })
+        .named_step("should_not_execute", |_ctx| async move {
+            println!("This should not execute without error handler");
+            Ok(())
+        })
+        // 添加高级全局错误处理器
+        .with_global_error_handler_advanced(|step_name, ctx, error| {
+            println!("Global error handler caught error in step '{}': {}", step_name, error);
+            
+            // 记录错误到上下文
+            ctx.set_variable("last_error".to_string(), error.to_string());
+            ctx.set_variable("failed_step".to_string(), step_name.to_string());
+            
+            // 决定是否继续执行（返回 true 继续，false 停止）
+            if step_name.contains("failing_step") {
+                println!("Error handler: Recovering from failing_step, continuing workflow...");
+                true // 继续执行
+            } else {
+                println!("Error handler: Critical error, stopping workflow");
+                false // 停止执行
+            }
+        })
+        .named_step("recovery_step", |ctx| async move {
+            let guard = ctx.lock().await;
+            let last_error = guard.get_variable("last_error");
+            let failed_step = guard.get_variable("failed_step");
+            println!("Recovery step executed after error recovery");
+            println!("Last error: {:?}", last_error);
+            println!("Failed step: {:?}", failed_step);
+            Ok(())
+        });
+
+    // 使用带错误恢复的运行方法
+    match error_flow
+        .run_all_with_recovery("error-demo-999".to_string())
+        .await
+    {
+        Ok(()) => println!("Flow completed successfully with error recovery"),
+        Err(e) => println!("Flow failed even with error handler: {}", e),
+    }
+
+    println!("\n=== All examples completed ===");
     Ok(())
 }

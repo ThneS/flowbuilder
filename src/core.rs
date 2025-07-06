@@ -689,8 +689,13 @@ impl FlowBuilder {
                             println!("[trace_id:{}] Step '{}' failed, rolling back...", guard.trace_id, name);
                             if let Err(rollback_err) = guard.rollback_to_snapshot(snapshot_id) {
                                 println!("[trace_id:{}] Rollback failed: {}", guard.trace_id, rollback_err);
+                                // 回滚失败时，返回复合错误
+                                return Err(anyhow!("Step '{}' failed: {}, and rollback also failed: {}", 
+                                    name, e, rollback_err));
                             } else {
                                 println!("[trace_id:{}] Successfully rolled back to snapshot '{}'", guard.trace_id, snapshot_id);
+                                // 回滚成功时，允许流程继续，不传播原始错误
+                                return Ok(());
                             }
                         }
                     }
@@ -795,5 +800,338 @@ impl FlowBuilder {
     pub async fn run_all_with_trace_id(self, trace_id: String) -> Result<()> {
         let ctx = Arc::new(Mutex::new(FlowContext::new_with_trace_id(trace_id)));
         self.run_all_with_context(ctx).await
+    }
+
+    // 添加多路分支 switch-case 功能
+    pub fn step_switch_match<F, G>(mut self, name: &'static str, matcher: F) -> Self
+    where
+        F: Fn(&FlowContext) -> Option<G> + Send + Sync + 'static,
+        G: Fn() -> FlowBuilder + Send + 'static,
+    {
+        self.steps.push(Box::new(move |ctx| {
+            let ctx2 = ctx.clone();
+            Box::pin(async move {
+                // 开始记录步骤
+                {
+                    let mut guard = ctx2.lock().await;
+                    guard.start_step(name.to_string());
+                }
+
+                let result = async {
+                    let guard = ctx2.lock().await;
+                    let trace_id = guard.trace_id.clone();
+                    
+                    if let Some(flow_generator) = matcher(&guard) {
+                        println!("[trace_id:{}] [{}] condition matched, executing branch", trace_id, name);
+                        drop(guard);
+                        flow_generator().run_all_with_context(ctx2.clone()).await
+                    } else {
+                        println!("[trace_id:{}] [{}] no condition matched, skipping", trace_id, name);
+                        drop(guard);
+                        Ok(())
+                    }
+                }.await;
+
+                // 结束记录步骤
+                {
+                    let mut guard = ctx2.lock().await;
+                    match &result {
+                        Ok(()) => guard.end_step_success(name),
+                        Err(e) => guard.end_step_failed(name, &e.to_string()),
+                    }
+                }
+
+                result
+            })
+        }));
+        self
+    }
+
+    // 添加支持 boxed closures 的多路分支 switch-case 功能
+    pub fn step_switch_match_boxed<F>(mut self, name: &'static str, matcher: F) -> Self
+    where
+        F: Fn(&FlowContext) -> Option<Box<dyn Fn() -> FlowBuilder + Send>> + Send + Sync + 'static,
+    {
+        self.steps.push(Box::new(move |ctx| {
+            let ctx2 = ctx.clone();
+            Box::pin(async move {
+                // 开始记录步骤
+                {
+                    let mut guard = ctx2.lock().await;
+                    guard.start_step(name.to_string());
+                }
+
+                let result = async {
+                    let guard = ctx2.lock().await;
+                    let trace_id = guard.trace_id.clone();
+                    
+                    if let Some(flow_generator) = matcher(&guard) {
+                        println!("[trace_id:{}] [{}] condition matched, executing branch", trace_id, name);
+                        drop(guard);
+                        flow_generator().run_all_with_context(ctx2.clone()).await
+                    } else {
+                        println!("[trace_id:{}] [{}] no condition matched, skipping", trace_id, name);
+                        drop(guard);
+                        Ok(())
+                    }
+                }.await;
+
+                // 结束记录步骤
+                {
+                    let mut guard = ctx2.lock().await;
+                    match &result {
+                        Ok(()) => guard.end_step_success(name),
+                        Err(e) => guard.end_step_failed(name, &e.to_string()),
+                    }
+                }
+
+                result
+            })
+        }));
+        self
+    }
+
+    // 添加全局错误处理器
+    pub fn with_global_error_handler<H>(self, handler: H) -> FlowBuilderWithErrorHandler<H>
+    where
+        H: Fn(&mut FlowContext, anyhow::Error) -> Result<()> + Send + Sync + 'static,
+    {
+        FlowBuilderWithErrorHandler {
+            inner: self,
+            error_handler: handler,
+        }
+    }
+
+    // 添加支持3参数的全局错误处理器 (step_name, context, error) -> bool (是否继续)
+    pub fn with_global_error_handler_advanced<H>(self, handler: H) -> FlowBuilderWithErrorHandlerAdvanced<H>
+    where
+        H: Fn(&str, &mut FlowContext, anyhow::Error) -> bool + Send + Sync + 'static,
+    {
+        FlowBuilderWithErrorHandlerAdvanced {
+            inner: self,
+            error_handler: handler,
+        }
+    }
+
+    // 添加可恢复的执行方法（包装所有步骤以使用全局错误处理）
+    pub async fn run_all_with_recovery<H>(self, error_handler: H) -> Result<()>
+    where
+        H: Fn(&mut FlowContext, anyhow::Error) -> Result<()> + Send + Sync + 'static,
+    {
+        let ctx = Arc::new(Mutex::new(FlowContext::default()));
+        self.run_all_with_context_and_recovery(ctx, error_handler).await
+    }
+
+    pub async fn run_all_with_context_and_recovery<H>(self, ctx: SharedContext, error_handler: H) -> Result<()>
+    where
+        H: Fn(&mut FlowContext, anyhow::Error) -> Result<()> + Send + Sync + 'static,
+    {
+        let trace_id = {
+            let guard = ctx.lock().await;
+            guard.trace_id.clone()
+        };
+
+        println!("[trace_id:{}] Starting flow execution with global error handler, {} steps", trace_id, self.steps.len());
+
+        for (i, step) in self.steps.into_iter().enumerate() {
+            println!("[trace_id:{}] Executing step {}/{}", trace_id, i + 1, i + 1);
+            
+            match step(ctx.clone()).await {
+                Ok(()) => {
+                    // 步骤成功，继续执行
+                }
+                Err(e) => {
+                    // 使用全局错误处理器处理错误
+                    println!("[trace_id:{}] Step {}/{} failed, invoking global error handler", trace_id, i + 1, i + 1);
+                    let mut guard = ctx.lock().await;
+                    match error_handler(&mut guard, e) {
+                        Ok(()) => {
+                            println!("[trace_id:{}] Global error handler resolved the error, continuing flow", trace_id);
+                            // 错误已处理，继续执行下一步
+                        }
+                        Err(handler_error) => {
+                            println!("[trace_id:{}] Global error handler failed: {}", trace_id, handler_error);
+                            drop(guard);
+                            // 打印流程摘要
+                            {
+                                let guard = ctx.lock().await;
+                                guard.print_summary();
+                            }
+                            return Err(handler_error);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 打印流程摘要
+        {
+            let guard = ctx.lock().await;
+            guard.print_summary();
+        }
+
+        println!("[trace_id:{}] Flow execution completed with global error handling", trace_id);
+        Ok(())
+    }
+
+    // 添加带全局错误处理和自定义 trace ID 的执行方法
+    pub async fn run_all_with_recovery_and_trace_id<H>(self, error_handler: H, trace_id: String) -> Result<()>
+    where
+        H: Fn(&mut FlowContext, anyhow::Error) -> Result<()> + Send + Sync + 'static,
+    {
+        let ctx = Arc::new(Mutex::new(FlowContext::new_with_trace_id(trace_id)));
+        self.run_all_with_context_and_recovery(ctx, error_handler).await
+    }
+
+    // 添加简化的字符串匹配 switch-case (支持 boxed closures)
+    pub fn step_switch_str(mut self, name: &'static str, variable_key: &'static str, cases: Vec<(&'static str, Box<dyn Fn() -> FlowBuilder + Send>)>, default_case: Option<Box<dyn Fn() -> FlowBuilder + Send>>) -> Self
+    {
+        self.steps.push(Box::new(move |ctx| {
+            let ctx2 = ctx.clone();
+            Box::pin(async move {
+                // 开始记录步骤
+                {
+                    let mut guard = ctx2.lock().await;
+                    guard.start_step(name.to_string());
+                }
+
+                let result = async {
+                    let guard = ctx2.lock().await;
+                    let trace_id = guard.trace_id.clone();
+                    let value = guard.get_variable(variable_key).map(|s| s.as_str()).unwrap_or("");
+                    
+                    // 查找匹配的分支
+                    for (case_value, flow_generator) in cases.into_iter() {
+                        if value == case_value {
+                            println!("[trace_id:{}] [{}] matched case '{}', executing branch", trace_id, name, case_value);
+                            drop(guard);
+                            return flow_generator().run_all_with_context(ctx2.clone()).await;
+                        }
+                    }
+                    
+                    // 执行默认分支
+                    if let Some(default_generator) = default_case {
+                        println!("[trace_id:{}] [{}] no case matched, executing default branch", trace_id, name);
+                        drop(guard);
+                        default_generator().run_all_with_context(ctx2.clone()).await
+                    } else {
+                        println!("[trace_id:{}] [{}] no case matched and no default branch", trace_id, name);
+                        drop(guard);
+                        Ok(())
+                    }
+                }.await;
+
+                // 结束记录步骤
+                {
+                    let mut guard = ctx2.lock().await;
+                    match &result {
+                        Ok(()) => guard.end_step_success(name),
+                        Err(e) => guard.end_step_failed(name, &e.to_string()),
+                    }
+                }
+
+                result
+            })
+        }));
+        self
+    }
+}
+
+// 带全局错误处理器的 FlowBuilder 包装器
+pub struct FlowBuilderWithErrorHandler<H>
+where
+    H: Fn(&mut FlowContext, anyhow::Error) -> Result<()> + Send + Sync + 'static,
+{
+    inner: FlowBuilder,
+    error_handler: H,
+}
+
+impl<H> FlowBuilderWithErrorHandler<H>
+where
+    H: Fn(&mut FlowContext, anyhow::Error) -> Result<()> + Send + Sync + 'static,
+{
+    // 继续添加步骤
+    pub fn named_step<Fut, F>(mut self, name: &'static str, f: F) -> Self
+    where
+        F: FnMut(SharedContext) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        self.inner = self.inner.named_step(name, f);
+        self
+    }
+
+    pub fn step_if<Fut, F, Cond>(mut self, cond: Cond, f: F) -> Self
+    where
+        Cond: Fn(&FlowContext) -> bool + Send + Sync + 'static,
+        F: FnMut(SharedContext) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        self.inner = self.inner.step_if(cond, f);
+        self
+    }
+
+    // 执行方法
+    pub async fn run_all(self) -> Result<()> {
+        self.inner.run_all_with_recovery(self.error_handler).await
+    }
+
+    pub async fn run_all_with_trace_id(self, trace_id: String) -> Result<()> {
+        self.inner.run_all_with_recovery_and_trace_id(self.error_handler, trace_id).await
+    }
+
+    pub async fn run_all_with_context(self, ctx: SharedContext) -> Result<()> {
+        self.inner.run_all_with_context_and_recovery(ctx, self.error_handler).await
+    }
+}
+
+// 带高级全局错误处理器的 FlowBuilder 包装器
+pub struct FlowBuilderWithErrorHandlerAdvanced<H>
+where
+    H: Fn(&str, &mut FlowContext, anyhow::Error) -> bool + Send + Sync + 'static,
+{
+    inner: FlowBuilder,
+    error_handler: H,
+}
+
+impl<H> FlowBuilderWithErrorHandlerAdvanced<H>
+where
+    H: Fn(&str, &mut FlowContext, anyhow::Error) -> bool + Send + Sync + 'static,
+{
+    // 继续添加步骤
+    pub fn named_step<Fut, F>(mut self, name: &'static str, f: F) -> Self
+    where
+        F: FnMut(SharedContext) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        self.inner = self.inner.named_step(name, f);
+        self
+    }
+
+    // 执行方法
+    pub async fn run_all_with_recovery(self, trace_id: String) -> Result<()> {
+        let ctx = Arc::new(Mutex::new(FlowContext::new_with_trace_id(trace_id.clone())));
+        
+        for (i, step) in self.inner.steps.into_iter().enumerate() {
+            let step_name = format!("step_{}", i + 1);
+            match step(ctx.clone()).await {
+                Ok(()) => {
+                    // 步骤成功
+                }
+                Err(e) => {
+                    // 调用高级错误处理器
+                    let should_continue = {
+                        let mut guard = ctx.lock().await;
+                        (self.error_handler)(&step_name, &mut guard, e)
+                    };
+                    
+                    if !should_continue {
+                        return Err(anyhow::anyhow!("Flow stopped by error handler at step: {}", step_name));
+                    }
+                }
+            }
+        }
+
+        println!("[trace_id:{}] Flow execution completed with advanced error handling", trace_id);
+        Ok(())
     }
 }
