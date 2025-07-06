@@ -157,7 +157,7 @@ impl DynamicFlowExecutor {
 
                 // 处理参数
                 for (param_name, param) in &action.parameters {
-                    let evaluated_value = self.evaluator.evaluate(&param.value.to_string())
+                    let evaluated_value = self.evaluator.evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
                     println!("      参数 {}: {:?}", param_name, evaluated_value);
                 }

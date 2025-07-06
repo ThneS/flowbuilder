@@ -1,15 +1,13 @@
-//! # 任务调度器模块
+//! # 简化的调度器模块
 //!
-//! 提供任务调度、优先级管理和资源分配功能
+//! 提供基本的任务调度功能
 
 use anyhow::Result;
-use flowbuilder_context::SharedContext;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{Mutex, Semaphore};
-use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 /// 任务优先级
@@ -59,7 +57,8 @@ pub enum TaskStatus {
     Cancelled,
 }
 
-/// 可调度的任务
+/// 简化的调度任务
+#[derive(Clone)]
 pub struct ScheduledTask {
     /// 任务ID
     pub id: Uuid,
@@ -69,7 +68,7 @@ pub struct ScheduledTask {
     pub description: Option<String>,
     /// 优先级
     pub priority: Priority,
-    /// 预估执行时间（毫秒）
+    /// 预估执行时间
     pub estimated_duration: Option<Duration>,
     /// 创建时间
     pub created_at: Instant,
@@ -82,26 +81,31 @@ pub struct ScheduledTask {
     /// 依赖的任务ID列表
     pub dependencies: Vec<Uuid>,
     /// 任务执行函数
-    pub task_fn: Arc<dyn Fn(SharedContext) -> tokio::task::JoinHandle<Result<()>> + Send + Sync>,
+    pub task_fn: Arc<dyn Fn() -> Result<()> + Send + Sync>,
     /// 任务元数据
     pub metadata: HashMap<String, String>,
 }
 
-impl Clone for ScheduledTask {
-    fn clone(&self) -> Self {
+impl ScheduledTask {
+    /// 创建新的调度任务
+    pub fn new(
+        name: String,
+        task_fn: Arc<dyn Fn() -> Result<()> + Send + Sync>,
+        priority: Priority,
+    ) -> Self {
         Self {
-            id: self.id,
-            name: self.name.clone(),
-            description: self.description.clone(),
-            priority: self.priority,
-            estimated_duration: self.estimated_duration,
-            created_at: self.created_at,
-            started_at: self.started_at,
-            completed_at: self.completed_at,
-            status: self.status.clone(),
-            dependencies: self.dependencies.clone(),
-            task_fn: self.task_fn.clone(),
-            metadata: self.metadata.clone(),
+            id: Uuid::new_v4(),
+            name,
+            description: None,
+            priority,
+            estimated_duration: None,
+            created_at: Instant::now(),
+            started_at: None,
+            completed_at: None,
+            status: TaskStatus::Pending,
+            dependencies: Vec::new(),
+            task_fn,
+            metadata: HashMap::new(),
         }
     }
 }
@@ -111,17 +115,15 @@ impl std::fmt::Debug for ScheduledTask {
         f.debug_struct("ScheduledTask")
             .field("id", &self.id)
             .field("name", &self.name)
-            .field("description", &self.description)
             .field("priority", &self.priority)
-            .field("estimated_duration", &self.estimated_duration)
-            .field("created_at", &self.created_at)
-            .field("started_at", &self.started_at)
-            .field("completed_at", &self.completed_at)
             .field("status", &self.status)
-            .field("dependencies", &self.dependencies)
-            .field("task_fn", &"<function>")
-            .field("metadata", &self.metadata)
             .finish()
+    }
+}
+
+impl PartialEq for ScheduledTask {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
     }
 }
 
@@ -163,7 +165,7 @@ impl Default for SchedulerConfig {
         Self {
             max_concurrent_tasks: 10,
             strategy: SchedulingStrategy::Priority,
-            task_timeout: Some(Duration::from_secs(300)), // 5分钟
+            task_timeout: Some(Duration::from_secs(300)),
             max_retries: 3,
             retry_delay: Duration::from_secs(1),
             enable_dependency_check: true,
@@ -198,10 +200,6 @@ pub struct TaskScheduler {
     task_queue: Arc<Mutex<BinaryHeap<ScheduledTask>>>,
     /// FIFO队列（用于FIFO策略）
     fifo_queue: Arc<Mutex<VecDeque<ScheduledTask>>>,
-    /// 轮询队列索引
-    round_robin_index: Arc<Mutex<usize>>,
-    /// 运行中的任务
-    running_tasks: Arc<Mutex<HashMap<Uuid, JoinHandle<Result<()>>>>>,
     /// 任务状态映射
     task_status: Arc<Mutex<HashMap<Uuid, ScheduledTask>>>,
     /// 并发控制信号量
@@ -221,8 +219,6 @@ impl TaskScheduler {
             config,
             task_queue: Arc::new(Mutex::new(BinaryHeap::new())),
             fifo_queue: Arc::new(Mutex::new(VecDeque::new())),
-            round_robin_index: Arc::new(Mutex::new(0)),
-            running_tasks: Arc::new(Mutex::new(HashMap::new())),
             task_status: Arc::new(Mutex::new(HashMap::new())),
             semaphore,
             stats: Arc::new(Mutex::new(SchedulerStats::default())),
@@ -247,78 +243,26 @@ impl TaskScheduler {
             stats.total_scheduled += 1;
         }
 
-        // 将任务添加到状态映射（克隆任务）
+        // 将任务添加到状态映射
         {
             let mut task_status = self.task_status.lock().await;
-            task_status.insert(task_id, task);
+            task_status.insert(task_id, task.clone());
         }
-
-        // 从状态映射获取任务副本并添加到队列
-        let task_copy = {
-            let task_status = self.task_status.lock().await;
-            task_status.get(&task_id).unwrap().clone()
-        };
 
         // 根据调度策略添加到相应队列
         match self.config.strategy {
             SchedulingStrategy::FirstInFirstOut => {
                 let mut fifo_queue = self.fifo_queue.lock().await;
-                fifo_queue.push_back(task_copy);
+                fifo_queue.push_back(task);
             }
-            SchedulingStrategy::Priority => {
+            _ => {
                 let mut task_queue = self.task_queue.lock().await;
-                task_queue.push(task_copy);
-            }
-            SchedulingStrategy::RoundRobin => {
-                let mut task_queue = self.task_queue.lock().await;
-                task_queue.push(task_copy);
-            }
-            SchedulingStrategy::ShortestJobFirst => {
-                let mut task_queue = self.task_queue.lock().await;
-                task_queue.push(task_copy);
+                task_queue.push(task);
             }
         }
 
         println!("任务已提交: {} (ID: {})", task_name, task_id);
         Ok(task_id)
-    }
-
-    /// 启动调度器
-    pub async fn start(&self) -> Result<()> {
-        {
-            let mut is_running = self.is_running.lock().await;
-            if *is_running {
-                return Err(anyhow::anyhow!("调度器已在运行"));
-            }
-            *is_running = true;
-        }
-
-        println!("任务调度器启动，策略: {:?}", self.config.strategy);
-        
-        // 启动调度循环
-        self.schedule_loop().await
-    }
-
-    /// 停止调度器
-    pub async fn stop(&self) -> Result<()> {
-        {
-            let mut is_running = self.is_running.lock().await;
-            *is_running = false;
-        }
-
-        // 等待所有运行中的任务完成
-        let running_tasks = {
-            let mut tasks = self.running_tasks.lock().await;
-            std::mem::take(&mut *tasks)
-        };
-
-        for (task_id, handle) in running_tasks {
-            println!("等待任务完成: {}", task_id);
-            let _ = handle.await;
-        }
-
-        println!("任务调度器已停止");
-        Ok(())
     }
 
     /// 获取任务状态
@@ -327,61 +271,10 @@ impl TaskScheduler {
         task_status.get(&task_id).map(|task| task.status.clone())
     }
 
-    /// 取消任务
-    pub async fn cancel_task(&self, task_id: Uuid) -> Result<()> {
-        // 更新任务状态
-        {
-            let mut task_status = self.task_status.lock().await;
-            if let Some(task) = task_status.get_mut(&task_id) {
-                if task.status == TaskStatus::Running {
-                    // 如果任务正在运行，取消执行
-                    let mut running_tasks = self.running_tasks.lock().await;
-                    if let Some(handle) = running_tasks.remove(&task_id) {
-                        handle.abort();
-                    }
-                }
-                task.status = TaskStatus::Cancelled;
-            }
-        }
-
-        // 从队列中移除（如果还在队列中）
-        self.remove_from_queues(task_id).await;
-        
-        println!("任务已取消: {}", task_id);
-        Ok(())
-    }
-
     /// 获取调度器统计信息
     pub async fn get_stats(&self) -> SchedulerStats {
         let stats = self.stats.lock().await;
         stats.clone()
-    }
-
-    /// 调度循环
-    async fn schedule_loop(&self) -> Result<()> {
-        loop {
-            {
-                let is_running = self.is_running.lock().await;
-                if !*is_running {
-                    break;
-                }
-            }
-
-            // 清理已完成的任务
-            self.cleanup_completed_tasks().await;
-
-            // 检查并调度新任务
-            if let Some(task) = self.get_next_task().await {
-                if self.can_schedule_task(&task).await {
-                    self.execute_task(task).await?;
-                }
-            }
-
-            // 短暂休眠避免占用过多CPU
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-
-        Ok(())
     }
 
     /// 获取下一个要执行的任务 (用于测试)
@@ -391,19 +284,9 @@ impl TaskScheduler {
                 let mut fifo_queue = self.fifo_queue.lock().await;
                 fifo_queue.pop_front()
             }
-            SchedulingStrategy::Priority => {
+            _ => {
                 let mut task_queue = self.task_queue.lock().await;
                 task_queue.pop()
-            }
-            SchedulingStrategy::RoundRobin => {
-                // 简化的轮询实现
-                let mut task_queue = self.task_queue.lock().await;
-                task_queue.pop()
-            }
-            SchedulingStrategy::ShortestJobFirst => {
-                // 选择估算时间最短的任务
-                let mut task_queue = self.task_queue.lock().await;
-                task_queue.pop() // 需要自定义排序逻辑
             }
         }
     }
@@ -442,9 +325,10 @@ impl TaskScheduler {
     /// 执行任务 (用于测试)
     pub async fn execute_task(&self, mut task: ScheduledTask) -> Result<()> {
         let task_id = task.id;
+        let task_name = task.name.clone();
         
         // 获取执行许可
-        let permit = self.semaphore.acquire().await
+        let _permit = self.semaphore.acquire().await
             .map_err(|e| anyhow::anyhow!("获取执行许可失败: {}", e))?;
 
         // 更新任务状态
@@ -453,7 +337,7 @@ impl TaskScheduler {
 
         {
             let mut task_status = self.task_status.lock().await;
-            task_status.insert(task_id, task);
+            task_status.insert(task_id, task.clone());
         }
 
         // 更新统计信息
@@ -463,76 +347,29 @@ impl TaskScheduler {
             stats.running_tasks += 1;
         }
 
-        // 创建执行上下文
-        let context = Arc::new(tokio::sync::Mutex::new(
-            flowbuilder_context::FlowContext::default()
-        ));
+        println!("任务开始执行: {} (ID: {})", task_name, task_id);
 
         // 执行任务
-        let task_fn = task.task_fn;
-        let handle = task_fn(context);
+        let result = (task.task_fn)();
 
-        // 存储任务句柄
-        {
-            let mut running_tasks = self.running_tasks.lock().await;
-            running_tasks.insert(task_id, handle);
-        }
-
-        println!("任务开始执行: {} (ID: {})", task.name, task_id);
-
-        // 释放许可（在任务完成时自动释放）
-        drop(permit);
-
-        Ok(())
-    }
-
-    /// 清理已完成的任务 (用于测试)
-    pub async fn cleanup_completed_tasks(&self) {
-        let mut completed_handles = Vec::new();
-        
-        {
-            let mut running_tasks = self.running_tasks.lock().await;
-            let mut to_remove = Vec::new();
-            
-            for (task_id, handle) in running_tasks.iter() {
-                if handle.is_finished() {
-                    to_remove.push(*task_id);
-                }
+        // 更新任务状态
+        let final_status = match result {
+            Ok(()) => {
+                println!("任务执行成功: {}", task_name);
+                TaskStatus::Completed
             }
-            
-            for task_id in to_remove {
-                if let Some(handle) = running_tasks.remove(&task_id) {
-                    completed_handles.push((task_id, handle));
-                }
+            Err(e) => {
+                println!("任务执行失败: {} - {}", task_name, e);
+                TaskStatus::Failed
             }
-        }
+        };
 
-        // 处理已完成的任务
-        for (task_id, handle) in completed_handles {
-            match handle.await {
-                Ok(Ok(())) => {
-                    self.mark_task_completed(task_id, TaskStatus::Completed).await;
-                }
-                Ok(Err(e)) => {
-                    println!("任务执行失败: {} - {}", task_id, e);
-                    self.mark_task_completed(task_id, TaskStatus::Failed).await;
-                }
-                Err(e) => {
-                    println!("任务被取消: {} - {}", task_id, e);
-                    self.mark_task_completed(task_id, TaskStatus::Cancelled).await;
-                }
-            }
-        }
-    }
+        task.status = final_status.clone();
+        task.completed_at = Some(Instant::now());
 
-    /// 标记任务完成
-    async fn mark_task_completed(&self, task_id: Uuid, status: TaskStatus) {
         {
             let mut task_status = self.task_status.lock().await;
-            if let Some(task) = task_status.get_mut(&task_id) {
-                task.status = status.clone();
-                task.completed_at = Some(Instant::now());
-            }
+            task_status.insert(task_id, task);
         }
 
         // 更新统计信息
@@ -540,29 +377,65 @@ impl TaskScheduler {
             let mut stats = self.stats.lock().await;
             stats.running_tasks = stats.running_tasks.saturating_sub(1);
             
-            match status {
+            match final_status {
                 TaskStatus::Completed => stats.completed_tasks += 1,
                 TaskStatus::Failed => stats.failed_tasks += 1,
                 _ => {}
             }
         }
 
-        println!("任务状态更新: {} -> {:?}", task_id, status);
+        Ok(())
     }
 
-    /// 从队列中移除任务
-    async fn remove_from_queues(&self, task_id: Uuid) {
-        // 从优先级队列移除
+    /// 清理已完成的任务 (用于测试)
+    pub async fn cleanup_completed_tasks(&self) {
+        // 在简化版本中，任务在执行后立即更新状态，无需额外清理
+    }
+
+    /// 启动调度器
+    pub async fn start(&self) -> Result<()> {
         {
-            let mut task_queue = self.task_queue.lock().await;
-            task_queue.retain(|task| task.id != task_id);
+            let mut is_running = self.is_running.lock().await;
+            if *is_running {
+                return Err(anyhow::anyhow!("调度器已在运行"));
+            }
+            *is_running = true;
         }
 
-        // 从FIFO队列移除
-        {
-            let mut fifo_queue = self.fifo_queue.lock().await;
-            fifo_queue.retain(|task| task.id != task_id);
+        println!("任务调度器启动，策略: {:?}", self.config.strategy);
+        
+        // 简化的调度循环
+        loop {
+            {
+                let is_running = self.is_running.lock().await;
+                if !*is_running {
+                    break;
+                }
+            }
+
+            // 检查并调度新任务
+            if let Some(task) = self.get_next_task().await {
+                if self.can_schedule_task(&task).await {
+                    let _ = self.execute_task(task).await;
+                }
+            }
+
+            // 短暂休眠
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
+
+        Ok(())
+    }
+
+    /// 停止调度器
+    pub async fn stop(&self) -> Result<()> {
+        {
+            let mut is_running = self.is_running.lock().await;
+            *is_running = false;
+        }
+
+        println!("任务调度器已停止");
+        Ok(())
     }
 }
 
@@ -574,8 +447,6 @@ mod tests {
     #[tokio::test]
     async fn test_scheduler_basic_functionality() {
         let scheduler = TaskScheduler::with_default_config();
-        
-        // 创建一个简单任务
         let counter = Arc::new(AtomicUsize::new(0));
         let counter_clone = counter.clone();
         
@@ -590,12 +461,9 @@ mod tests {
             completed_at: None,
             status: TaskStatus::Pending,
             dependencies: Vec::new(),
-            task_fn: Box::new(move |_ctx| {
-                let counter = counter_clone.clone();
-                tokio::spawn(async move {
-                    counter.fetch_add(1, Ordering::SeqCst);
-                    Ok(())
-                })
+            task_fn: Arc::new(move || {
+                counter_clone.fetch_add(1, Ordering::SeqCst);
+                Ok(())
             }),
             metadata: HashMap::new(),
         };
@@ -605,29 +473,26 @@ mod tests {
         // 验证任务已提交
         assert_eq!(scheduler.get_task_status(task_id).await, Some(TaskStatus::Pending));
         
-        // 执行一次调度循环
+        // 执行任务
         if let Some(task) = scheduler.get_next_task().await {
             scheduler.execute_task(task).await.unwrap();
         }
         
-        // 等待任务完成
-        tokio::time::sleep(Duration::from_millis(200)).await;
-        scheduler.cleanup_completed_tasks().await;
-        
         // 验证任务完成
         assert_eq!(counter.load(Ordering::SeqCst), 1);
+        assert_eq!(scheduler.get_task_status(task_id).await, Some(TaskStatus::Completed));
     }
 
     #[tokio::test]
-    async fn test_priority_scheduling() {
+    async fn test_scheduler_priority_ordering() {
         let scheduler = TaskScheduler::with_default_config();
         
         // 创建不同优先级的任务
         let tasks = vec![
-            (Priority::Low, "低优先级任务"),
-            (Priority::High, "高优先级任务"),
-            (Priority::Normal, "普通优先级任务"),
-            (Priority::Critical, "紧急任务"),
+            (Priority::Low, "低优先级"),
+            (Priority::High, "高优先级"),
+            (Priority::Normal, "普通优先级"),
+            (Priority::Critical, "紧急优先级"),
         ];
 
         for (priority, name) in tasks {
@@ -642,9 +507,7 @@ mod tests {
                 completed_at: None,
                 status: TaskStatus::Pending,
                 dependencies: Vec::new(),
-                task_fn: Box::new(|_ctx| {
-                    tokio::spawn(async move { Ok(()) })
-                }),
+                task_fn: Arc::new(|| Ok(())),
                 metadata: HashMap::new(),
             };
 

@@ -34,12 +34,56 @@ impl YamlFlowBuilder {
         // 按顺序添加任务中的动作
         for task in &self.config.workflow.tasks {
             for action in &task.task.actions {
-                let step = self.create_step_from_action(&action.action)?;
-                flow_builder = flow_builder.step(&action.action.id, step);
+                let step_closure = self.create_step_closure_from_action(&action.action)?;
+                flow_builder = flow_builder.step(step_closure);
             }
         }
 
         Ok(flow_builder)
+    }
+
+    /// 从动作定义创建步骤闭包 (兼容 FnMut)
+    fn create_step_closure_from_action(&self, action: &ActionDefinition) -> Result<impl FnMut(SharedContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + 'static> {
+        let action_clone = action.clone();
+        let evaluator_clone = self.evaluator.clone();
+        
+        Ok(move |ctx: SharedContext| {
+            let action = action_clone.clone();
+            let evaluator = evaluator_clone.clone();
+            
+            Box::pin(async move {
+                match action.action_type {
+                    ActionType::Builtin => {
+                        println!("执行内置动作: {}", action.id);
+                        // 处理输出
+                        for (key, value) in action.outputs {
+                            let mut guard = ctx.lock().await;
+                            guard.set_output(key, format!("{:?}", value));
+                        }
+                    },
+                    ActionType::Cmd => {
+                        println!("执行命令动作: {}", action.id);
+                        // 处理参数
+                        for (param_name, param) in action.parameters {
+                            let evaluated_value = evaluator.evaluate(&format!("{:?}", param.value))
+                                .unwrap_or(param.value.clone());
+                            println!("  参数 {}: {:?}", param_name, evaluated_value);
+                        }
+                    },
+                    ActionType::Http => {
+                        println!("执行HTTP动作: {}", action.id);
+                        // 模拟HTTP请求
+                        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    },
+                    ActionType::Wasm => {
+                        println!("执行WASM动作: {}", action.id);
+                        // 模拟WASM执行
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    },
+                }
+                Ok(())
+            })
+        })
     }
 
     /// 从动作定义创建步骤
@@ -98,7 +142,7 @@ impl YamlFlowBuilder {
 
                 // 处理参数
                 for (param_name, param) in parameters {
-                    let evaluated_value = evaluator.evaluate(&param.value.to_string())
+                    let evaluated_value = evaluator.evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
                     println!("  参数 {}: {:?}", param_name, evaluated_value);
                 }

@@ -3,6 +3,7 @@ use regex::Regex;
 use std::collections::HashMap;
 
 /// 表达式求值器，用于处理工作流中的变量和表达式
+#[derive(Clone)]
 pub struct ExpressionEvaluator {
     env_vars: HashMap<String, String>,
     flow_vars: HashMap<String, serde_yaml::Value>,
