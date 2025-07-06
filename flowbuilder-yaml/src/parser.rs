@@ -1,0 +1,283 @@
+use crate::config::{WorkflowConfig, ActionType, ActionDefinition};
+use crate::expression::ExpressionEvaluator;
+use flowbuilder_core::{FlowBuilder, Step, StepFuture};
+use flowbuilder_context::SharedContext;
+use anyhow::{Result, Context};
+use std::sync::Arc;
+use std::time::Duration;
+
+/// YAML 流程构建器，用于从配置动态构建 FlowBuilder
+pub struct YamlFlowBuilder {
+    config: WorkflowConfig,
+    evaluator: ExpressionEvaluator,
+}
+
+impl YamlFlowBuilder {
+    /// 从配置创建新的 YAML 流程构建器
+    pub fn new(config: WorkflowConfig) -> Result<Self> {
+        let mut evaluator = ExpressionEvaluator::new();
+
+        // 设置环境变量和流程变量
+        evaluator.set_env_vars(config.workflow.env.clone());
+        evaluator.set_flow_vars(config.workflow.vars.clone());
+
+        Ok(Self {
+            config,
+            evaluator,
+        })
+    }
+
+    /// 构建 FlowBuilder 实例
+    pub fn build(&self) -> Result<FlowBuilder> {
+        let mut flow_builder = FlowBuilder::new();
+
+        // 按顺序添加任务中的动作
+        for task in &self.config.workflow.tasks {
+            for action in &task.task.actions {
+                let step = self.create_step_from_action(&action.action)?;
+                flow_builder = flow_builder.step(&action.action.id, step);
+            }
+        }
+
+        Ok(flow_builder)
+    }
+
+    /// 从动作定义创建步骤
+    fn create_step_from_action(&self, action: &ActionDefinition) -> Result<Step> {
+        match action.action_type {
+            ActionType::Builtin => self.create_builtin_step(action),
+            ActionType::Cmd => self.create_cmd_step(action),
+            ActionType::Http => self.create_http_step(action),
+            ActionType::Wasm => self.create_wasm_step(action),
+        }
+    }
+
+    /// 创建内置步骤
+    fn create_builtin_step(&self, action: &ActionDefinition) -> Result<Step> {
+        let action_id = action.id.clone();
+        let outputs = action.outputs.clone();
+        let evaluator = self.evaluator.clone();
+
+        Ok(Box::new(move |ctx: SharedContext| -> StepFuture {
+            let action_id = action_id.clone();
+            let outputs = outputs.clone();
+            let mut evaluator = evaluator.clone();
+
+            Box::pin(async move {
+                println!("执行内置动作: {}", action_id);
+
+                // 将输出存储到上下文中
+                for (key, value) in outputs {
+                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    evaluator.set_context_var(full_key, value);
+                }
+
+                // 模拟一些处理时间
+                tokio::time::sleep(Duration::from_millis(100)).await;
+
+                Ok(())
+            })
+        }))
+    }
+
+    /// 创建命令步骤
+    fn create_cmd_step(&self, action: &ActionDefinition) -> Result<Step> {
+        let action_id = action.id.clone();
+        let parameters = action.parameters.clone();
+        let outputs = action.outputs.clone();
+        let evaluator = self.evaluator.clone();
+
+        Ok(Box::new(move |ctx: SharedContext| -> StepFuture {
+            let action_id = action_id.clone();
+            let parameters = parameters.clone();
+            let outputs = outputs.clone();
+            let mut evaluator = evaluator.clone();
+
+            Box::pin(async move {
+                println!("执行命令动作: {}", action_id);
+
+                // 处理参数
+                for (param_name, param) in parameters {
+                    let evaluated_value = evaluator.evaluate(&param.value.to_string())
+                        .unwrap_or(param.value.clone());
+                    println!("  参数 {}: {:?}", param_name, evaluated_value);
+                }
+
+                // 模拟命令执行
+                tokio::time::sleep(Duration::from_millis(200)).await;
+
+                // 将输出存储到上下文中
+                for (key, value) in outputs {
+                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    evaluator.set_context_var(full_key, value);
+                }
+
+                Ok(())
+            })
+        }))
+    }
+
+    /// 创建 HTTP 步骤
+    fn create_http_step(&self, action: &ActionDefinition) -> Result<Step> {
+        let action_id = action.id.clone();
+        let parameters = action.parameters.clone();
+        let outputs = action.outputs.clone();
+        let evaluator = self.evaluator.clone();
+
+        Ok(Box::new(move |ctx: SharedContext| -> StepFuture {
+            let action_id = action_id.clone();
+            let parameters = parameters.clone();
+            let outputs = outputs.clone();
+            let mut evaluator = evaluator.clone();
+
+            Box::pin(async move {
+                println!("执行 HTTP 动作: {}", action_id);
+
+                // 处理参数（URL, 方法, 头部等）
+                for (param_name, param) in parameters {
+                    let evaluated_value = evaluator.evaluate(&param.value.to_string())
+                        .unwrap_or(param.value.clone());
+                    println!("  HTTP 参数 {}: {:?}", param_name, evaluated_value);
+                }
+
+                // 模拟 HTTP 请求
+                tokio::time::sleep(Duration::from_millis(300)).await;
+
+                // 将输出存储到上下文中
+                for (key, value) in outputs {
+                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    evaluator.set_context_var(full_key, value);
+                }
+
+                Ok(())
+            })
+        }))
+    }
+
+    /// 创建 WASM 步骤
+    fn create_wasm_step(&self, action: &ActionDefinition) -> Result<Step> {
+        let action_id = action.id.clone();
+        let parameters = action.parameters.clone();
+        let outputs = action.outputs.clone();
+        let evaluator = self.evaluator.clone();
+
+        Ok(Box::new(move |ctx: SharedContext| -> StepFuture {
+            let action_id = action_id.clone();
+            let parameters = parameters.clone();
+            let outputs = outputs.clone();
+            let mut evaluator = evaluator.clone();
+
+            Box::pin(async move {
+                println!("执行 WASM 动作: {}", action_id);
+
+                // 处理参数
+                for (param_name, param) in parameters {
+                    let evaluated_value = evaluator.evaluate(&param.value.to_string())
+                        .unwrap_or(param.value.clone());
+                    println!("  WASM 参数 {}: {:?}", param_name, evaluated_value);
+                }
+
+                // 模拟 WASM 执行
+                tokio::time::sleep(Duration::from_millis(150)).await;
+
+                // 将输出存储到上下文中
+                for (key, value) in outputs {
+                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    evaluator.set_context_var(full_key, value);
+                }
+
+                Ok(())
+            })
+        }))
+    }
+
+    /// 获取表达式求值器的可变引用
+    pub fn evaluator_mut(&mut self) -> &mut ExpressionEvaluator {
+        &mut self.evaluator
+    }
+
+    /// 获取表达式求值器的引用
+    pub fn evaluator(&self) -> &ExpressionEvaluator {
+        &self.evaluator
+    }
+
+    /// 获取工作流配置的引用
+    pub fn config(&self) -> &WorkflowConfig {
+        &self.config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::loader::WorkflowLoader;
+
+    #[test]
+    fn test_yaml_flow_builder() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  env:
+    FLOWBUILDER_ENV: "test"
+  vars:
+    name: "Test Workflow"
+  tasks:
+    - task:
+        id: "task1"
+        name: "Test Task"
+        description: "A test task"
+        actions:
+          - action:
+              id: "test_action"
+              name: "Test Action"
+              description: "A test action"
+              type: "builtin"
+              outputs:
+                status: 200
+                message: "Test completed"
+              parameters: {}
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let yaml_builder = YamlFlowBuilder::new(config).unwrap();
+        let flow_builder = yaml_builder.build().unwrap();
+
+        // 验证流程构建器创建成功
+        assert!(!flow_builder.steps.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_builtin_step_execution() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  tasks:
+    - task:
+        id: "task1"
+        name: "Test Task"
+        description: "A test task"
+        actions:
+          - action:
+              id: "test_action"
+              name: "Test Action"
+              description: "A test action"
+              type: "builtin"
+              outputs:
+                status: 200
+              parameters: {}
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let yaml_builder = YamlFlowBuilder::new(config).unwrap();
+        let flow_builder = yaml_builder.build().unwrap();
+
+        // 创建上下文并执行流程
+        let context = Arc::new(tokio::sync::Mutex::new(
+            flowbuilder_context::FlowContext::default()
+        ));
+
+        let flow = flow_builder.build();
+        let result = flow.execute(context).await;
+        assert!(result.is_ok());
+    }
+}

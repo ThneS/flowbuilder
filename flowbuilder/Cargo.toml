@@ -15,6 +15,7 @@ flowbuilder-macros = { path = "../flowbuilder-macros", optional = true }
 flowbuilder-context = { path = "../flowbuilder-context" }
 flowbuilder-logger = { path = "../flowbuilder-logger", optional = true }
 flowbuilder-runtime = { path = "../flowbuilder-runtime", optional = true }
+flowbuilder-yaml = { path = "../flowbuilder-yaml", optional = true }
 
 # Re-export workspace dependencies
 anyhow = { workspace = true }
@@ -26,7 +27,8 @@ core = ["flowbuilder-core/default"]
 macros = ["dep:flowbuilder-macros", "flowbuilder-core/macros"]
 logger = ["dep:flowbuilder-logger", "flowbuilder-core/logger"]
 runtime = ["dep:flowbuilder-runtime", "flowbuilder-core/runtime"]
-full = ["macros", "logger", "runtime"]
+yaml = ["dep:flowbuilder-yaml"]
+full = ["macros", "logger", "runtime", "yaml"]
 
 # Legacy features for backwards compatibility
 mvp = ["core"]

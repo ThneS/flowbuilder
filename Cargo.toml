@@ -5,6 +5,7 @@ members = [
     "flowbuilder-context",
     "flowbuilder-logger",
     "flowbuilder-runtime",
+    "flowbuilder-yaml",
     "flowbuilder",
 ]
 resolver = "2"

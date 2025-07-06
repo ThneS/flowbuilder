@@ -51,6 +51,10 @@ pub use flowbuilder_logger as logger;
 #[cfg_attr(docsrs, doc(cfg(feature = "runtime")))]
 pub use flowbuilder_runtime as runtime;
 
+#[cfg(feature = "yaml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
+pub use flowbuilder_yaml as yaml;
+
 /// Prelude module for easy imports
 pub mod prelude {
     pub use flowbuilder_context::{FlowContext, SharedContext};
@@ -67,4 +71,8 @@ pub mod prelude {
     #[cfg(feature = "runtime")]
     #[cfg_attr(docsrs, doc(cfg(feature = "runtime")))]
     pub use flowbuilder_runtime::*;
+
+    #[cfg(feature = "yaml")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
+    pub use flowbuilder_yaml::prelude::*;
 }
