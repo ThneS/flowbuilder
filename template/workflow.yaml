@@ -1,0 +1,103 @@
+workflow:
+  version: 1.0
+  env:
+    FLOWBUILDER_ENV: "production"
+  vars:
+    name: "FlowBuilder Example"
+    description: "This is an example workflow for FlowBuilder."
+  template: # 定义函数和变量以及流程的基本结构
+    id: base_template
+    name: base
+    version: 1.0
+    description: Base template for FlowBuilder
+  tasks:
+    - task:
+        id: task1
+        name: Example Action
+        description: This is an example action.
+        actions:
+          - action:
+              id: example_action
+              name: Example Action
+              description: This action serves as an example.
+              flow:
+                next: ${task2.example_action_2} # ${} 是过程变量，用于存放到flowcontext中
+                next_if: ${status.name == "FlowBuilder Example"}
+                while_util:
+                  condition: ${status.description != ""}
+                  max_iterations: 5
+                retry:
+                  max_retries: 3
+                  delay: 1000 # milliseconds
+                timeout:
+                  duration: 5000 # milliseconds
+                on_error: ${error}
+                on_timeout: ${timeout}
+              outputs: # outputs 的输出会存放到flowcontext中，可以在其他action中使用, outsputs 中的字段不是固定的
+                status: 123
+                value: "This is the output of the example action."
+                error: "This is the error message."
+              type: cmd # /http/builtin/wasm
+              parameters:
+                param1:
+                  value: ${{ env.name }}
+                  required: true
+                param2:
+                  value: ${{ env.description }}
+                  required: false
+    - task:
+        id: task2
+        name: Example Action 2
+        description: This is another example action.
+        actions:
+          - action:
+              id: example_action_2
+              name: Example Action 2
+              description: This action serves as another example.
+              flow:
+                next: ${task3.final_action}
+                next_if: ${status.status == 200}
+                retry:
+                  max_retries: 2
+                  delay: 500
+                timeout:
+                  duration: 3000
+                on_error: ${error}
+                on_timeout: ${timeout}
+              outputs:
+                status: 200
+                output: "Second action completed."
+                error: ""
+              type: cmd
+              parameters:
+                param1:
+                  value: ${task1.example_action.outputs.value}
+                  required: true
+    - task:
+        id: task3
+        name: Final Action
+        description: This is the final action in the workflow.
+        actions:
+          - action:
+              id: final_action
+              name: Final Action
+              description: This is the last action.
+              flow:
+                next: null
+                next_if: null
+                retry:
+                  max_retries: 1
+                  delay: 100
+                timeout:
+                  duration: 2000
+                on_error: ${error}
+                on_timeout: ${timeout}
+              outputs:
+                status: 0
+                output: "Workflow completed."
+                error: ""
+              type: cmd
+              parameters:
+                param1:
+                  value: "Final parameter"
+                  required: false
