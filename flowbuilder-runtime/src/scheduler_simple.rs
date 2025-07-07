@@ -11,22 +11,17 @@ use tokio::sync::{Mutex, Semaphore};
 use uuid::Uuid;
 
 /// 任务优先级
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum Priority {
     /// 低优先级
     Low = 1,
     /// 普通优先级
+    #[default]
     Normal = 2,
     /// 高优先级
     High = 3,
     /// 紧急优先级
     Critical = 4,
-}
-
-impl Default for Priority {
-    fn default() -> Self {
-        Priority::Normal
-    }
 }
 
 /// 调度策略
@@ -296,10 +291,9 @@ impl TaskScheduler {
     /// 检查是否可以调度任务 (用于测试)
     pub async fn can_schedule_task(&self, task: &ScheduledTask) -> bool {
         // 检查依赖是否满足
-        if self.config.enable_dependency_check {
-            if !self.check_dependencies(&task.dependencies).await {
-                return false;
-            }
+        if self.config.enable_dependency_check && !self.check_dependencies(&task.dependencies).await
+        {
+            return false;
         }
 
         // 检查并发限制

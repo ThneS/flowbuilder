@@ -143,7 +143,7 @@ impl ExpressionEvaluator {
         // 尝试按路径结构解析
         let mut current = None;
         for (ctx_key, ctx_value) in &self.context_vars {
-            if ctx_key.starts_with(&parts[0]) {
+            if ctx_key.starts_with(parts[0]) {
                 current = Some(ctx_value.clone());
                 break;
             }

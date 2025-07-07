@@ -115,7 +115,7 @@ impl Clone for FlowNode {
             condition: self.condition.clone(),
             next_nodes: self.next_nodes.clone(),
             error_recovery: self.error_recovery.clone(),
-            timeout: self.timeout.clone(),
+            timeout: self.timeout,
             retry_config: self.retry_config.clone(),
         }
     }
@@ -162,6 +162,7 @@ impl std::fmt::Debug for FlowNode {
 
 /// 检查点数据
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Checkpoint {
     /// 检查点ID
     pub id: String,
@@ -266,7 +267,7 @@ impl FlowOrchestrator {
     pub fn add_dependency(&mut self, node_id: String, depends_on: String) -> &mut Self {
         self.dependencies
             .entry(node_id)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(depends_on);
         self
     }
@@ -380,7 +381,7 @@ impl FlowOrchestrator {
         loop {
             attempts += 1;
 
-            let result = if let Some(_) = &node.flow {
+            let result = if node.flow.is_some() {
                 // 执行流程 - 实际执行，但由于 Flow 所有权问题，我们暂时模拟执行
                 // 在真实场景中，应该重新设计 Flow 以支持多次执行
                 tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -528,7 +529,7 @@ impl FlowOrchestrator {
             }
             BranchCondition::Custom(func) => {
                 let ctx = self.global_context.lock().await;
-                Ok(func(&*ctx))
+                Ok(func(&ctx))
             }
         }
     }
@@ -538,7 +539,7 @@ impl FlowOrchestrator {
         let states = self.node_states.read().await;
         let mut ready_nodes = Vec::new();
 
-        for (node_id, _) in &self.nodes {
+        for node_id in self.nodes.keys() {
             // 检查节点是否已执行
             if let Some(state) = states.get(node_id) {
                 match state {
@@ -553,7 +554,7 @@ impl FlowOrchestrator {
                 let all_deps_satisfied = deps.iter().all(|dep| {
                     states
                         .get(dep)
-                        .map_or(false, |state| *state == FlowState::Completed)
+                        .is_some_and(|state| *state == FlowState::Completed)
                 });
 
                 if all_deps_satisfied {

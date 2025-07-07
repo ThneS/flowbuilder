@@ -5,6 +5,7 @@ use flowbuilder_context::SharedContext;
 use flowbuilder_core::{FlowBuilder, Step, StepFuture};
 use std::future::Future;
 use std::pin::Pin;
+#[allow(unused_imports)]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,6 +14,13 @@ pub struct YamlFlowBuilder {
     config: WorkflowConfig,
     evaluator: ExpressionEvaluator,
 }
+
+/// 复杂的步骤闭包类型
+type StepClosure = Box<
+    dyn FnMut(SharedContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>
+        + Send
+        + 'static,
+>;
 
 impl YamlFlowBuilder {
     /// 从配置创建新的 YAML 流程构建器
@@ -42,16 +50,7 @@ impl YamlFlowBuilder {
     }
 
     /// 从动作定义创建步骤闭包 (兼容 FnMut)
-    fn create_step_closure_from_action(
-        &self,
-        action: &ActionDefinition,
-    ) -> Result<
-        Box<
-            dyn FnMut(SharedContext) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>
-                + Send
-                + 'static,
-        >,
-    > {
+    fn create_step_closure_from_action(&self, action: &ActionDefinition) -> Result<StepClosure> {
         let action_clone = action.clone();
         let evaluator_clone = self.evaluator.clone();
 
@@ -98,6 +97,7 @@ impl YamlFlowBuilder {
     }
 
     /// 从动作定义创建步骤
+    #[allow(dead_code)]
     fn create_step_from_action(&self, action: &ActionDefinition) -> Result<Step> {
         match action.action_type {
             ActionType::Builtin => self.create_builtin_step(action),
@@ -331,7 +331,7 @@ workflow:
         let flow_builder = yaml_builder.build().unwrap();
 
         // 创建上下文并执行流程
-        let context = Arc::new(tokio::sync::Mutex::new(
+        let _context = Arc::new(tokio::sync::Mutex::new(
             flowbuilder_context::FlowContext::default(),
         ));
 

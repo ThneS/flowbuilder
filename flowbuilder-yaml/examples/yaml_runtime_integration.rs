@@ -3,7 +3,6 @@
 //! 演示如何使用 YAML 配置与 flowbuilder-runtime 的集成功能
 
 use anyhow::Result;
-use flowbuilder_context::FlowContext;
 use flowbuilder_yaml::{convenience, YamlRuntimeIntegrator};
 
 #[tokio::main]

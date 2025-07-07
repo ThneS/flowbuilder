@@ -4,19 +4,19 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-mod flow_builder;
-mod flow;
 mod executor;
+mod flow;
+mod flow_builder;
 
 #[cfg(test)]
 mod tests;
 
-pub use flow_builder::{FlowBuilder, Step, StepFuture};
-pub use flow::Flow;
 pub use executor::FlowExecutor;
+pub use flow::Flow;
+pub use flow_builder::{FlowBuilder, Step, StepFuture};
 
 /// Prelude module for core functionality
 pub mod prelude {
-    pub use crate::{FlowBuilder, Flow, FlowExecutor, Step, StepFuture};
+    pub use crate::{Flow, FlowBuilder, FlowExecutor, Step, StepFuture};
     pub use flowbuilder_context::{FlowContext, SharedContext};
 }

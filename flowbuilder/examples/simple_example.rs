@@ -20,7 +20,7 @@ async fn main() -> anyhow::Result<()> {
             |_ctx| async move {
                 println!("  Step 3: Conditional step executed");
                 Ok(())
-            }
+            },
         );
 
     let result = basic_flow.execute().await?;

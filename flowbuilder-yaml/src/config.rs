@@ -107,11 +107,12 @@ pub struct TimeoutConfig {
 }
 
 /// 动作类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ActionType {
     Cmd,
     Http,
+    #[default]
     Builtin,
     Wasm,
 }
@@ -122,10 +123,4 @@ pub struct Parameter {
     pub value: serde_yaml::Value,
     #[serde(default)]
     pub required: bool,
-}
-
-impl Default for ActionType {
-    fn default() -> Self {
-        ActionType::Builtin
-    }
 }

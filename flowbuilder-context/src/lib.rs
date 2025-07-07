@@ -92,9 +92,16 @@ impl FlowContext {
         self.snapshots.insert(snapshot_id.clone(), snapshot);
 
         #[cfg(feature = "logger")]
-        tracing::info!("[trace_id:{}] Created snapshot: {}", self.trace_id, snapshot_id);
+        tracing::info!(
+            "[trace_id:{}] Created snapshot: {}",
+            self.trace_id,
+            snapshot_id
+        );
         #[cfg(not(feature = "logger"))]
-        println!("[trace_id:{}] Created snapshot: {}", self.trace_id, snapshot_id);
+        println!(
+            "[trace_id:{}] Created snapshot: {}",
+            self.trace_id, snapshot_id
+        );
 
         Ok(())
     }
@@ -148,9 +155,16 @@ impl FlowContext {
             .ok_or_else(|| format!("Snapshot '{}' not found", snapshot_id))?;
 
         #[cfg(feature = "logger")]
-        tracing::info!("[trace_id:{}] Removed snapshot: {}", self.trace_id, snapshot_id);
+        tracing::info!(
+            "[trace_id:{}] Removed snapshot: {}",
+            self.trace_id,
+            snapshot_id
+        );
         #[cfg(not(feature = "logger"))]
-        println!("[trace_id:{}] Removed snapshot: {}", self.trace_id, snapshot_id);
+        println!(
+            "[trace_id:{}] Removed snapshot: {}",
+            self.trace_id, snapshot_id
+        );
 
         Ok(())
     }
@@ -172,9 +186,16 @@ impl FlowContext {
         self.step_logs.push(step_log);
 
         #[cfg(feature = "logger")]
-        tracing::info!("[trace_id:{}] [step:{}] starting...", self.trace_id, step_name);
+        tracing::info!(
+            "[trace_id:{}] [step:{}] starting...",
+            self.trace_id,
+            step_name
+        );
         #[cfg(not(feature = "logger"))]
-        println!("[trace_id:{}] [step:{}] starting...", self.trace_id, step_name);
+        println!(
+            "[trace_id:{}] [step:{}] starting...",
+            self.trace_id, step_name
+        );
     }
 
     pub fn end_step_success(&mut self, step_name: &str) {
@@ -189,9 +210,17 @@ impl FlowContext {
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
             #[cfg(feature = "logger")]
-            tracing::info!("[trace_id:{}] [step:{}] completed successfully in {:?}", self.trace_id, step_name, duration);
+            tracing::info!(
+                "[trace_id:{}] [step:{}] completed successfully in {:?}",
+                self.trace_id,
+                step_name,
+                duration
+            );
             #[cfg(not(feature = "logger"))]
-            println!("[trace_id:{}] [step:{}] completed successfully in {:?}", self.trace_id, step_name, duration);
+            println!(
+                "[trace_id:{}] [step:{}] completed successfully in {:?}",
+                self.trace_id, step_name, duration
+            );
         }
     }
 
@@ -208,9 +237,18 @@ impl FlowContext {
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
             #[cfg(feature = "logger")]
-            tracing::error!("[trace_id:{}] [step:{}] failed after {:?}: {}", self.trace_id, step_name, duration, error);
+            tracing::error!(
+                "[trace_id:{}] [step:{}] failed after {:?}: {}",
+                self.trace_id,
+                step_name,
+                duration,
+                error
+            );
             #[cfg(not(feature = "logger"))]
-            println!("[trace_id:{}] [step:{}] failed after {:?}: {}", self.trace_id, step_name, duration, error);
+            println!(
+                "[trace_id:{}] [step:{}] failed after {:?}: {}",
+                self.trace_id, step_name, duration, error
+            );
         }
         self.errors
             .push(format!("[{}] {}: {}", self.trace_id, step_name, error));
@@ -228,9 +266,18 @@ impl FlowContext {
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
             #[cfg(feature = "logger")]
-            tracing::warn!("[trace_id:{}] [step:{}] skipped after {:?}: {}", self.trace_id, step_name, duration, reason);
+            tracing::warn!(
+                "[trace_id:{}] [step:{}] skipped after {:?}: {}",
+                self.trace_id,
+                step_name,
+                duration,
+                reason
+            );
             #[cfg(not(feature = "logger"))]
-            println!("[trace_id:{}] [step:{}] skipped after {:?}: {}", self.trace_id, step_name, duration, reason);
+            println!(
+                "[trace_id:{}] [step:{}] skipped after {:?}: {}",
+                self.trace_id, step_name, duration, reason
+            );
         }
     }
 
@@ -246,9 +293,17 @@ impl FlowContext {
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
             #[cfg(feature = "logger")]
-            tracing::error!("[trace_id:{}] [step:{}] timed out after {:?}", self.trace_id, step_name, duration);
+            tracing::error!(
+                "[trace_id:{}] [step:{}] timed out after {:?}",
+                self.trace_id,
+                step_name,
+                duration
+            );
             #[cfg(not(feature = "logger"))]
-            println!("[trace_id:{}] [step:{}] timed out after {:?}", self.trace_id, step_name, duration);
+            println!(
+                "[trace_id:{}] [step:{}] timed out after {:?}",
+                self.trace_id, step_name, duration
+            );
         }
         self.errors
             .push(format!("[{}] {}: timeout", self.trace_id, step_name));
@@ -256,9 +311,17 @@ impl FlowContext {
 
     pub fn set_variable(&mut self, key: String, value: String) {
         #[cfg(feature = "logger")]
-        tracing::debug!("[trace_id:{}] setting variable {} = {}", self.trace_id, key, value);
+        tracing::debug!(
+            "[trace_id:{}] setting variable {} = {}",
+            self.trace_id,
+            key,
+            value
+        );
         #[cfg(not(feature = "logger"))]
-        println!("[trace_id:{}] setting variable {} = {}", self.trace_id, key, value);
+        println!(
+            "[trace_id:{}] setting variable {} = {}",
+            self.trace_id, key, value
+        );
 
         self.variables.insert(key, value);
     }

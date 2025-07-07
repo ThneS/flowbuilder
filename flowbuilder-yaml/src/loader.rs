@@ -90,7 +90,9 @@ impl WorkflowLoader {
     }
 
     /// 从配置创建带有 runtime 功能的执行器
-    pub fn create_runtime_executor(config: WorkflowConfig) -> Result<crate::executor::DynamicFlowExecutor> {
+    pub fn create_runtime_executor(
+        config: WorkflowConfig,
+    ) -> Result<crate::executor::DynamicFlowExecutor> {
         use crate::executor::DynamicFlowExecutor;
         DynamicFlowExecutor::new(config)
     }
@@ -129,7 +131,9 @@ impl WorkflowLoader {
         let mut results = Vec::new();
 
         for path in paths {
-            let _permit = semaphore.acquire().await
+            let _permit = semaphore
+                .acquire()
+                .await
                 .map_err(|e| anyhow::anyhow!("Failed to acquire semaphore: {}", e))?;
             let result = Self::execute_workflow_file(path, true, false).await;
             results.push(result);
