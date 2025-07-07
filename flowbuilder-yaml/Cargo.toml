@@ -19,6 +19,7 @@ regex = "1.0"
 # FlowBuilder 依赖
 flowbuilder-core = { path = "../flowbuilder-core" }
 flowbuilder-context = { path = "../flowbuilder-context" }
+flowbuilder-runtime = { path = "../flowbuilder-runtime" }
 
 [features]
 default = []

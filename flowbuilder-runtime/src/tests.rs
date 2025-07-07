@@ -2,10 +2,10 @@
 //!
 //! 测试调度器和编排器的核心功能
 
-use crate::orchestrator::{
-    BranchCondition, ErrorRecoveryStrategy, FlowNode, FlowOrchestrator, FlowState,
+use crate::{
+    BranchCondition, ErrorRecoveryStrategy, FlowNode, FlowOrchestrator, FlowState, Priority,
+    ScheduledTask, SchedulerConfig, TaskScheduler, TaskStatus,
 };
-use crate::scheduler::{Priority, ScheduledTask, SchedulerConfig, TaskScheduler, TaskStatus};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -71,7 +71,7 @@ async fn test_scheduler_priority_ordering() {
     // 注意：由于任务是异步执行的，我们验证调度器处理的顺序
     assert_eq!(execution_results.len(), 4);
     assert_eq!(execution_results[0], "紧急优先级");
-    assert_eq!(execution_results[1], "高优先级"); 
+    assert_eq!(execution_results[1], "高优先级");
     assert_eq!(execution_results[2], "普通优先级");
     assert_eq!(execution_results[3], "低优先级");
 }
@@ -127,7 +127,7 @@ async fn test_scheduler_dependency_checking() {
     if first_task.id == task2_id {
         // task2 不能调度，因为依赖 task1 未完成
         assert!(!scheduler.can_schedule_task(&first_task).await);
-        
+
         // 获取下一个任务，应该是 task1
         let second_task = scheduler.get_next_task().await.unwrap();
         assert_eq!(second_task.id, task1_id);

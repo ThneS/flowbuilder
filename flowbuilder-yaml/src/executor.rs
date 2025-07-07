@@ -1,16 +1,22 @@
-use crate::config::{WorkflowConfig, FlowControl};
-use crate::parser::YamlFlowBuilder;
+use crate::config::{ActionDefinition, ActionType, FlowControl, WorkflowConfig};
 use crate::expression::ExpressionEvaluator;
-use flowbuilder_core::{FlowBuilder, FlowExecutor};
-use flowbuilder_context::{SharedContext, FlowContext};
-use anyhow::{Result, Context};
+use crate::parser::YamlFlowBuilder;
+use anyhow::{Context, Result};
+use flowbuilder_context::{FlowContext, SharedContext};
+use flowbuilder_runtime::{
+    FlowNode, FlowOrchestrator, OrchestratorConfig, Priority, ScheduledTask, SchedulerConfig,
+    TaskScheduler,
+};
 use std::sync::Arc;
 use std::time::Duration;
 
 /// 动态流程执行器，支持条件流程控制、重试、超时等高级功能
+/// 现在集成了 runtime 的调度器和编排器功能
 pub struct DynamicFlowExecutor {
     config: WorkflowConfig,
     evaluator: ExpressionEvaluator,
+    scheduler: TaskScheduler,
+    orchestrator: FlowOrchestrator,
 }
 
 impl DynamicFlowExecutor {
@@ -22,26 +28,38 @@ impl DynamicFlowExecutor {
         evaluator.set_env_vars(config.workflow.env.clone());
         evaluator.set_flow_vars(config.workflow.vars.clone());
 
+        // 创建调度器和编排器
+        let scheduler = TaskScheduler::new(SchedulerConfig::default());
+        let orchestrator = FlowOrchestrator::new();
+
         Ok(Self {
             config,
             evaluator,
+            scheduler,
+            orchestrator,
         })
     }
 
     /// 执行动态流程
     pub async fn execute(&mut self, context: SharedContext) -> Result<()> {
-        println!("开始执行动态工作流: {} v{}",
-                 self.config.workflow.vars.get("name")
-                     .map(|v| v.as_str().unwrap_or("Unknown"))
-                     .unwrap_or("Unknown"),
-                 self.config.workflow.version);
+        println!(
+            "开始执行动态工作流: {} v{}",
+            self.config
+                .workflow
+                .vars
+                .get("name")
+                .map(|v| v.as_str().unwrap_or("Unknown"))
+                .unwrap_or("Unknown"),
+            self.config.workflow.version
+        );
 
         // 按顺序执行任务
         for task in &self.config.workflow.tasks.clone() {
             println!("执行任务: {} - {}", task.task.id, task.task.name);
 
             for action in &task.task.actions {
-                self.execute_action(&action.action, context.clone()).await
+                self.execute_action(&action.action, context.clone())
+                    .await
                     .with_context(|| format!("Failed to execute action: {}", action.action.id))?;
             }
         }
@@ -71,17 +89,22 @@ impl DynamicFlowExecutor {
 
         // 执行重试逻辑
         let mut retries = 0;
-        let max_retries = flow_control.retry.as_ref()
+        let max_retries = flow_control
+            .retry
+            .as_ref()
             .map(|r| r.max_retries)
             .unwrap_or(0);
 
         loop {
-            let result = self.execute_action_with_timeout(action, context.clone()).await;
+            let result = self
+                .execute_action_with_timeout(action, context.clone())
+                .await;
 
             match result {
                 Ok(()) => {
                     // 执行成功，存储输出
-                    self.store_action_outputs(action_id, &action.outputs).await?;
+                    self.store_action_outputs(action_id, &action.outputs)
+                        .await?;
 
                     // 检查下一步流程
                     self.handle_next_flow(flow_control).await?;
@@ -126,7 +149,8 @@ impl DynamicFlowExecutor {
             match tokio::time::timeout(timeout_duration, action_future).await {
                 Ok(result) => result,
                 Err(_) => {
-                    let timeout_error = anyhow::anyhow!("Action timed out after {}ms", timeout_config.duration);
+                    let timeout_error =
+                        anyhow::anyhow!("Action timed out after {}ms", timeout_config.duration);
 
                     // 处理超时流程
                     if let Some(on_timeout) = &action.flow.on_timeout {
@@ -157,7 +181,9 @@ impl DynamicFlowExecutor {
 
                 // 处理参数
                 for (param_name, param) in &action.parameters {
-                    let evaluated_value = self.evaluator.evaluate(&format!("{:?}", param.value))
+                    let evaluated_value = self
+                        .evaluator
+                        .evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
                     println!("      参数 {}: {:?}", param_name, evaluated_value);
                 }
@@ -202,7 +228,10 @@ impl DynamicFlowExecutor {
         // 处理循环控制
         if let Some(while_util) = &flow_control.while_util {
             if self.evaluator.evaluate_condition(&while_util.condition)? {
-                println!("    循环条件满足，最大迭代次数: {}", while_util.max_iterations);
+                println!(
+                    "    循环条件满足，最大迭代次数: {}",
+                    while_util.max_iterations
+                );
             }
         }
 
@@ -229,6 +258,148 @@ impl DynamicFlowExecutor {
     /// 获取工作流配置的引用
     pub fn config(&self) -> &WorkflowConfig {
         &self.config
+    }
+
+    /// 使用调度器执行工作流
+    pub async fn execute_with_scheduler(&mut self, context: SharedContext) -> Result<()> {
+        println!(
+            "使用调度器执行动态工作流: {} v{}",
+            self.config
+                .workflow
+                .vars
+                .get("name")
+                .map(|v| v.as_str().unwrap_or("Unknown"))
+                .unwrap_or("Unknown"),
+            self.config.workflow.version
+        );
+
+        // 将每个任务转换为调度任务
+        for task in &self.config.workflow.tasks {
+            let task_id = task.task.id.clone();
+            let task_name = task.task.name.clone();
+            let actions = task.task.actions.clone();
+            let _context_clone = context.clone();
+            let _evaluator = self.evaluator.clone();
+
+            // 确定任务优先级
+            let priority = self.determine_task_priority(&task.task)?;
+
+            // 创建调度任务
+            let scheduled_task = ScheduledTask::new(
+                task_name,
+                Arc::new(move || {
+                    // 在调度任务中执行所有动作
+                    for action in &actions {
+                        println!("    执行动作: {}", action.action.id);
+                        // 简化的执行逻辑
+                    }
+                    Ok(())
+                }),
+                priority,
+            );
+
+            // 提交任务到调度器
+            self.scheduler
+                .submit_task(scheduled_task)
+                .await
+                .with_context(|| format!("Failed to submit task: {}", task_id))?;
+        }
+
+        // 启动调度器
+        self.scheduler
+            .start()
+            .await
+            .with_context(|| "Failed to start scheduler")?;
+
+        println!("工作流调度执行完成");
+        Ok(())
+    }
+
+    /// 使用编排器执行工作流
+    pub async fn execute_with_orchestrator(&mut self, _context: SharedContext) -> Result<()> {
+        println!(
+            "使用编排器执行动态工作流: {} v{}",
+            self.config
+                .workflow
+                .vars
+                .get("name")
+                .map(|v| v.as_str().unwrap_or("Unknown"))
+                .unwrap_or("Unknown"),
+            self.config.workflow.version
+        );
+
+        // 为每个任务创建流程节点
+        for task in &self.config.workflow.tasks {
+            let node = FlowNode::new(task.task.id.clone()).name(task.task.name.clone());
+
+            self.orchestrator.add_node(node);
+        }
+
+        // 执行编排
+        let results = self
+            .orchestrator
+            .execute_all()
+            .await
+            .with_context(|| "Failed to execute orchestrator")?;
+
+        println!("工作流编排执行完成，执行了 {} 个节点", results.len());
+        Ok(())
+    }
+
+    /// 确定任务优先级
+    fn determine_task_priority(&self, task: &crate::config::TaskDefinition) -> Result<Priority> {
+        // 根据任务配置确定优先级
+        // 这里可以根据任务的配置或元数据来决定优先级
+        if task.name.contains("critical") || task.name.contains("urgent") {
+            Ok(Priority::Critical)
+        } else if task.name.contains("high") {
+            Ok(Priority::High)
+        } else if task.name.contains("low") {
+            Ok(Priority::Low)
+        } else {
+            Ok(Priority::Normal)
+        }
+    }
+
+    /// 静态执行动作方法（用于调度任务）
+    async fn execute_action_static(
+        action: &ActionDefinition,
+        context: SharedContext,
+        evaluator: &mut ExpressionEvaluator,
+    ) -> Result<()> {
+        println!("    静态执行动作: {} - {}", action.id, action.name);
+
+        match action.action_type {
+            ActionType::Builtin => {
+                println!("      执行内置动作: {}", action.id); // 处理输出
+                for (key, value) in &action.outputs {
+                    let mut guard = context.lock().await;
+                    guard.set_variable(key.clone(), format!("{:?}", value));
+                }
+            }
+            ActionType::Cmd => {
+                println!("      执行命令动作: {}", action.id);
+                // 处理参数
+                for (param_name, param) in &action.parameters {
+                    let evaluated_value = evaluator
+                        .evaluate(&format!("{:?}", param.value))
+                        .unwrap_or(param.value.clone());
+                    println!("        参数 {}: {:?}", param_name, evaluated_value);
+                }
+            }
+            ActionType::Http => {
+                println!("      执行HTTP动作: {}", action.id);
+                // 模拟HTTP请求
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            ActionType::Wasm => {
+                println!("      执行WASM动作: {}", action.id);
+                // 模拟WASM执行
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        }
+
+        Ok(())
     }
 }
 

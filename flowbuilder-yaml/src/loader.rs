@@ -88,13 +88,60 @@ impl WorkflowLoader {
 
         Ok(())
     }
+
+    /// 从配置创建带有 runtime 功能的执行器
+    pub fn create_runtime_executor(config: WorkflowConfig) -> Result<crate::executor::DynamicFlowExecutor> {
+        use crate::executor::DynamicFlowExecutor;
+        DynamicFlowExecutor::new(config)
+    }
+
+    /// 快速执行工作流文件（使用 runtime 功能）
+    pub async fn execute_workflow_file<P: AsRef<Path>>(
+        path: P,
+        use_scheduler: bool,
+        use_orchestrator: bool,
+    ) -> Result<()> {
+        let config = Self::from_yaml_file(path)?;
+        Self::validate(&config)?;
+
+        let mut executor = Self::create_runtime_executor(config)?;
+        let context = std::sync::Arc::new(tokio::sync::Mutex::new(
+            flowbuilder_context::FlowContext::default(),
+        ));
+
+        if use_scheduler {
+            executor.execute_with_scheduler(context).await?;
+        } else if use_orchestrator {
+            executor.execute_with_orchestrator(context).await?;
+        } else {
+            executor.execute(context).await?;
+        }
+
+        Ok(())
+    }
+
+    /// 批量执行多个工作流文件（简化版本）
+    pub async fn execute_workflow_batch<P: AsRef<Path>>(
+        paths: Vec<P>,
+        max_concurrent: usize,
+    ) -> Result<Vec<Result<()>>> {
+        let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrent));
+        let mut results = Vec::new();
+
+        for path in paths {
+            let _permit = semaphore.acquire().await
+                .map_err(|e| anyhow::anyhow!("Failed to acquire semaphore: {}", e))?;
+            let result = Self::execute_workflow_file(path, true, false).await;
+            results.push(result);
+        }
+
+        Ok(results)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_load_from_yaml_str() {
