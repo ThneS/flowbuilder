@@ -215,8 +215,8 @@ async fn demo_expression_evaluation() -> Result<()> {
 
     for expr in expressions {
         match evaluator.evaluate(expr) {
-            Ok(result) => println!("  {} => {:?}", expr, result),
-            Err(e) => println!("  {} => 错误: {}", expr, e),
+            Ok(result) => println!("  {expr} => {result:?}"),
+            Err(e) => println!("  {expr} => 错误: {e}"),
         }
     }
 
@@ -233,8 +233,8 @@ async fn demo_expression_evaluation() -> Result<()> {
     println!("\n  条件求值测试:");
     for condition in conditions {
         match evaluator.evaluate_condition(condition) {
-            Ok(result) => println!("    {} => {}", condition, result),
-            Err(e) => println!("    {} => 错误: {}", condition, e),
+            Ok(result) => println!("    {condition} => {result}"),
+            Err(e) => println!("    {condition} => 错误: {e}"),
         }
     }
 

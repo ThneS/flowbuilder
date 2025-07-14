@@ -126,7 +126,7 @@ pub fn derive_flow_context(input: TokenStream) -> TokenStream {
         .iter()
         .zip(field_types.iter())
         .map(|(name, ty)| {
-            let getter_name = syn::Ident::new(&format!("get_{}", name), name.span());
+            let getter_name = syn::Ident::new(&format!("get_{name}"), name.span());
             quote! {
                 pub fn #getter_name(&self, ctx: &FlowContext) -> Option<#ty> {
                     ctx.get_variable(stringify!(#name))
@@ -139,7 +139,7 @@ pub fn derive_flow_context(input: TokenStream) -> TokenStream {
         .iter()
         .zip(field_types.iter())
         .map(|(name, ty)| {
-            let setter_name = syn::Ident::new(&format!("set_{}", name), name.span());
+            let setter_name = syn::Ident::new(&format!("set_{name}"), name.span());
             quote! {
                 pub fn #setter_name(&self, ctx: &mut FlowContext, value: #ty) {
                     ctx.set_variable(stringify!(#name).to_string(), value.to_string());

@@ -41,8 +41,8 @@ pub enum BranchCondition {
 impl std::fmt::Debug for BranchCondition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BranchCondition::Boolean(b) => write!(f, "Boolean({})", b),
-            BranchCondition::Expression(expr) => write!(f, "Expression({})", expr),
+            BranchCondition::Boolean(b) => write!(f, "Boolean({b})"),
+            BranchCondition::Expression(expr) => write!(f, "Expression({expr})"),
             BranchCondition::Custom(_) => write!(f, "Custom(<function>)"),
         }
     }
@@ -301,7 +301,7 @@ impl FlowOrchestrator {
         }
 
         if self.config.verbose_logging {
-            println!("检查点已创建: {}", checkpoint_id);
+            println!("检查点已创建: {checkpoint_id}");
         }
 
         Ok(())
@@ -336,7 +336,7 @@ impl FlowOrchestrator {
         }
 
         if self.config.verbose_logging {
-            println!("已恢复到检查点: {}", checkpoint_id);
+            println!("已恢复到检查点: {checkpoint_id}");
         }
 
         Ok(())
@@ -354,7 +354,7 @@ impl FlowOrchestrator {
         if let Some(condition) = &node.condition {
             if !self.evaluate_condition(condition).await? {
                 if self.config.verbose_logging {
-                    println!("节点 {} 条件不满足，跳过执行", node_id);
+                    println!("节点 {node_id} 条件不满足，跳过执行");
                 }
                 return Ok(FlowContext::default());
             }
@@ -393,7 +393,7 @@ impl FlowOrchestrator {
                 // 模拟执行流程中的步骤
                 // 实际上应该调用 flow.execute() 但由于所有权问题我们无法这样做
                 if self.config.verbose_logging {
-                    println!("模拟执行节点 {} 的流程", node_id);
+                    println!("模拟执行节点 {node_id} 的流程");
                 }
 
                 Ok(context)
@@ -612,7 +612,7 @@ impl FlowOrchestrator {
                     }
                     Err(e) => {
                         if self.config.verbose_logging {
-                            println!("节点 {} 执行失败: {}", node_id, e);
+                            println!("节点 {node_id} 执行失败: {e}");
                         }
                     }
                 }

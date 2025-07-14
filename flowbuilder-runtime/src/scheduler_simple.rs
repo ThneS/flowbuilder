@@ -258,7 +258,7 @@ impl TaskScheduler {
             }
         }
 
-        println!("任务已提交: {} (ID: {})", task_name, task_id);
+        println!("任务已提交: {task_name} (ID: {task_id})");
         Ok(task_id)
     }
 
@@ -346,7 +346,7 @@ impl TaskScheduler {
             stats.running_tasks += 1;
         }
 
-        println!("任务开始执行: {} (ID: {})", task_name, task_id);
+        println!("任务开始执行: {task_name} (ID: {task_id})");
 
         // 执行任务
         let result = (task.task_fn)();
@@ -354,11 +354,11 @@ impl TaskScheduler {
         // 更新任务状态
         let final_status = match result {
             Ok(()) => {
-                println!("任务执行成功: {}", task_name);
+                println!("任务执行成功: {task_name}");
                 TaskStatus::Completed
             }
             Err(e) => {
-                println!("任务执行失败: {} - {}", task_name, e);
+                println!("任务执行失败: {task_name} - {e}");
                 TaskStatus::Failed
             }
         };

@@ -92,10 +92,10 @@ workflow:
         Ok(results) => {
             println!("✅ 调度执行完成，处理了 {} 个任务", results.len());
             for (task_id, status) in results {
-                println!("   - 任务 {}: {:?}", task_id, status);
+                println!("   - 任务 {task_id}: {status:?}");
             }
         }
-        Err(e) => println!("❌ 调度执行失败: {}", e),
+        Err(e) => println!("❌ 调度执行失败: {e}"),
     }
 
     // 2. 使用 YamlRuntimeIntegrator 直接操作
@@ -114,10 +114,10 @@ workflow:
                         );
                     }
                 }
-                Err(e) => println!("❌ 编排执行失败: {}", e),
+                Err(e) => println!("❌ 编排执行失败: {e}"),
             }
         }
-        Err(e) => println!("❌ 创建集成器失败: {}", e),
+        Err(e) => println!("❌ 创建集成器失败: {e}"),
     }
 
     // 3. 演示混合执行模式
@@ -127,10 +127,10 @@ workflow:
             println!("✅ 混合执行完成");
             println!("   - 最终上下文包含 {} 个变量", context.variables.len());
             for (key, value) in context.variables.iter() {
-                println!("     {}={}", key, value);
+                println!("     {key}={value}");
             }
         }
-        Err(e) => println!("❌ 混合执行失败: {}", e),
+        Err(e) => println!("❌ 混合执行失败: {e}"),
     }
 
     println!("\n🎉 所有示例执行完成！");

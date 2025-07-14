@@ -66,7 +66,7 @@ impl YamlFlowBuilder {
                             // 处理输出
                             for (key, value) in action.outputs {
                                 let mut guard = ctx.lock().await;
-                                guard.set_variable(key, format!("{:?}", value));
+                                guard.set_variable(key, format!("{value:?}"));
                             }
                         }
                         ActionType::Cmd => {
@@ -76,7 +76,7 @@ impl YamlFlowBuilder {
                                 let evaluated_value = evaluator
                                     .evaluate(&format!("{:?}", param.value))
                                     .unwrap_or(param.value.clone());
-                                println!("  参数 {}: {:?}", param_name, evaluated_value);
+                                println!("  参数 {param_name}: {evaluated_value:?}");
                             }
                         }
                         ActionType::Http => {
@@ -119,11 +119,11 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行内置动作: {}", action_id);
+                println!("执行内置动作: {action_id}");
 
                 // 将输出存储到上下文中
                 for (key, value) in outputs {
-                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    let full_key = format!("{action_id}.outputs.{key}");
                     evaluator.set_context_var(full_key, value);
                 }
 
@@ -149,14 +149,14 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行命令动作: {}", action_id);
+                println!("执行命令动作: {action_id}");
 
                 // 处理参数
                 for (param_name, param) in parameters {
                     let evaluated_value = evaluator
                         .evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
-                    println!("  参数 {}: {:?}", param_name, evaluated_value);
+                    println!("  参数 {param_name}: {evaluated_value:?}");
                 }
 
                 // 模拟命令执行
@@ -164,7 +164,7 @@ impl YamlFlowBuilder {
 
                 // 将输出存储到上下文中
                 for (key, value) in outputs {
-                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    let full_key = format!("{action_id}.outputs.{key}");
                     evaluator.set_context_var(full_key, value);
                 }
 
@@ -187,14 +187,14 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行 HTTP 动作: {}", action_id);
+                println!("执行 HTTP 动作: {action_id}");
 
                 // 处理参数（URL, 方法, 头部等）
                 for (param_name, param) in parameters {
                     let evaluated_value = evaluator
                         .evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
-                    println!("  HTTP 参数 {}: {:?}", param_name, evaluated_value);
+                    println!("  HTTP 参数 {param_name}: {evaluated_value:?}");
                 }
 
                 // 模拟 HTTP 请求
@@ -202,7 +202,7 @@ impl YamlFlowBuilder {
 
                 // 将输出存储到上下文中
                 for (key, value) in outputs {
-                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    let full_key = format!("{action_id}.outputs.{key}");
                     evaluator.set_context_var(full_key, value);
                 }
 
@@ -225,14 +225,14 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行 WASM 动作: {}", action_id);
+                println!("执行 WASM 动作: {action_id}");
 
                 // 处理参数
                 for (param_name, param) in parameters {
                     let evaluated_value = evaluator
                         .evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
-                    println!("  WASM 参数 {}: {:?}", param_name, evaluated_value);
+                    println!("  WASM 参数 {param_name}: {evaluated_value:?}");
                 }
 
                 // 模拟 WASM 执行
@@ -240,7 +240,7 @@ impl YamlFlowBuilder {
 
                 // 将输出存储到上下文中
                 for (key, value) in outputs {
-                    let full_key = format!("{}.outputs.{}", action_id, key);
+                    let full_key = format!("{action_id}.outputs.{key}");
                     evaluator.set_context_var(full_key, value);
                 }
 

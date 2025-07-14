@@ -81,7 +81,7 @@ impl DynamicFlowExecutor {
         // 检查执行条件
         if let Some(next_if) = &flow_control.next_if {
             if !self.evaluator.evaluate_condition(next_if)? {
-                println!("    跳过动作 {} (条件不满足)", action_id);
+                println!("    跳过动作 {action_id} (条件不满足)");
                 return Ok(());
             }
         }
@@ -110,11 +110,11 @@ impl DynamicFlowExecutor {
                     break;
                 }
                 Err(e) => {
-                    println!("    动作 {} 执行失败: {}", action_id, e);
+                    println!("    动作 {action_id} 执行失败: {e}");
 
                     if retries < max_retries {
                         retries += 1;
-                        println!("    重试 {}/{}", retries, max_retries);
+                        println!("    重试 {retries}/{max_retries}");
 
                         if let Some(retry_config) = &flow_control.retry {
                             tokio::time::sleep(Duration::from_millis(retry_config.delay)).await;
@@ -184,7 +184,7 @@ impl DynamicFlowExecutor {
                         .evaluator
                         .evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
-                    println!("      参数 {}: {:?}", param_name, evaluated_value);
+                    println!("      参数 {param_name}: {evaluated_value:?}");
                 }
 
                 tokio::time::sleep(Duration::from_millis(200)).await;
@@ -209,9 +209,9 @@ impl DynamicFlowExecutor {
         outputs: &std::collections::HashMap<String, serde_yaml::Value>,
     ) -> Result<()> {
         for (key, value) in outputs {
-            let full_key = format!("{}.outputs.{}", action_id, key);
+            let full_key = format!("{action_id}.outputs.{key}");
             self.evaluator.set_context_var(full_key, value.clone());
-            println!("    输出 {}: {:?}", key, value);
+            println!("    输出 {key}: {value:?}");
         }
         Ok(())
     }
@@ -220,7 +220,7 @@ impl DynamicFlowExecutor {
     async fn handle_next_flow(&self, flow_control: &FlowControl) -> Result<()> {
         if let Some(next) = &flow_control.next {
             if next != "null" {
-                println!("    下一步: {}", next);
+                println!("    下一步: {next}");
             }
         }
 
@@ -239,13 +239,13 @@ impl DynamicFlowExecutor {
 
     /// 处理错误流程
     async fn handle_error_flow(&self, on_error: &str, error: &anyhow::Error) -> Result<()> {
-        println!("    错误处理: {} - {}", on_error, error);
+        println!("    错误处理: {on_error} - {error}");
         Ok(())
     }
 
     /// 处理超时流程
     async fn handle_timeout_flow(&self, on_timeout: &str) -> Result<()> {
-        println!("    超时处理: {}", on_timeout);
+        println!("    超时处理: {on_timeout}");
         Ok(())
     }
 
@@ -301,7 +301,7 @@ impl DynamicFlowExecutor {
             self.scheduler
                 .submit_task(scheduled_task)
                 .await
-                .with_context(|| format!("Failed to submit task: {}", task_id))?;
+                .with_context(|| format!("Failed to submit task: {task_id}"))?;
         }
 
         // 启动调度器
@@ -374,7 +374,7 @@ impl DynamicFlowExecutor {
                 println!("      执行内置动作: {}", action.id); // 处理输出
                 for (key, value) in &action.outputs {
                     let mut guard = context.lock().await;
-                    guard.set_variable(key.clone(), format!("{:?}", value));
+                    guard.set_variable(key.clone(), format!("{value:?}"));
                 }
             }
             ActionType::Cmd => {
@@ -384,7 +384,7 @@ impl DynamicFlowExecutor {
                     let evaluated_value = evaluator
                         .evaluate(&format!("{:?}", param.value))
                         .unwrap_or(param.value.clone());
-                    println!("        参数 {}: {:?}", param_name, evaluated_value);
+                    println!("        参数 {param_name}: {evaluated_value:?}");
                 }
             }
             ActionType::Http => {

@@ -77,7 +77,7 @@ impl FlowContext {
         description: String,
     ) -> Result<(), String> {
         if self.snapshots.contains_key(&snapshot_id) {
-            return Err(format!("Snapshot with id '{}' already exists", snapshot_id));
+            return Err(format!("Snapshot with id '{snapshot_id}' already exists"));
         }
 
         let snapshot = ContextSnapshot {
@@ -111,7 +111,7 @@ impl FlowContext {
         let snapshot = self
             .snapshots
             .get(snapshot_id)
-            .ok_or_else(|| format!("Snapshot '{}' not found", snapshot_id))?
+            .ok_or_else(|| format!("Snapshot '{snapshot_id}' not found"))?
             .clone();
 
         // 保留 trace_id 和快照信息，回滚其他状态
@@ -152,7 +152,7 @@ impl FlowContext {
     pub fn remove_snapshot(&mut self, snapshot_id: &str) -> Result<(), String> {
         self.snapshots
             .remove(snapshot_id)
-            .ok_or_else(|| format!("Snapshot '{}' not found", snapshot_id))?;
+            .ok_or_else(|| format!("Snapshot '{snapshot_id}' not found"))?;
 
         #[cfg(feature = "logger")]
         tracing::info!(
@@ -362,21 +362,20 @@ impl FlowContext {
             .count();
 
         println!(
-            "Success: {}, Failed: {}, Skipped: {}, Timeout: {}",
-            success_count, failed_count, skipped_count, timeout_count
+            "Success: {success_count}, Failed: {failed_count}, Skipped: {skipped_count}, Timeout: {timeout_count}"
         );
 
         if !self.errors.is_empty() {
             println!("Errors: {}", self.errors.len());
             for error in &self.errors {
-                println!("  - {}", error);
+                println!("  - {error}");
             }
         }
 
         if !self.variables.is_empty() {
             println!("Variables:");
             for (key, value) in &self.variables {
-                println!("  {} = {}", key, value);
+                println!("  {key} = {value}");
             }
         }
         println!("==============================\n");
