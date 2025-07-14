@@ -10,10 +10,10 @@ license = "Apache-2.0"
 flowbuilder-context = { path = "../flowbuilder-context" }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-tracing = { workspace = true, optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+uuid = { version = "1.0", features = ["v4"] }
 
 [features]
 default = []
-macros = []
-logger = ["flowbuilder-context/logger", "dep:tracing"]
 runtime = []

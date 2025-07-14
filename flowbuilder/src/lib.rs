@@ -39,14 +39,6 @@
 pub use flowbuilder_context as context;
 pub use flowbuilder_core::*;
 
-#[cfg(feature = "macros")]
-#[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
-pub use flowbuilder_macros::*;
-
-#[cfg(feature = "logger")]
-#[cfg_attr(docsrs, doc(cfg(feature = "logger")))]
-pub use flowbuilder_logger as logger;
-
 #[cfg(feature = "runtime")]
 #[cfg_attr(docsrs, doc(cfg(feature = "runtime")))]
 pub use flowbuilder_runtime as runtime;
@@ -59,14 +51,6 @@ pub use flowbuilder_yaml as yaml;
 pub mod prelude {
     pub use flowbuilder_context::{FlowContext, SharedContext};
     pub use flowbuilder_core::prelude::*;
-
-    #[cfg(feature = "macros")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "macros")))]
-    pub use flowbuilder_macros::*;
-
-    #[cfg(feature = "logger")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "logger")))]
-    pub use flowbuilder_logger::Logger;
 
     #[cfg(feature = "runtime")]
     #[cfg_attr(docsrs, doc(cfg(feature = "runtime")))]

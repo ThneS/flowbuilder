@@ -26,25 +26,35 @@ impl ExpressionEvaluator {
     }
 
     /// 设置流程变量
-    pub fn set_flow_vars(&mut self, flow_vars: HashMap<String, serde_yaml::Value>) {
+    pub fn set_flow_vars(
+        &mut self,
+        flow_vars: HashMap<String, serde_yaml::Value>,
+    ) {
         self.flow_vars = flow_vars;
     }
 
     /// 设置上下文变量
-    pub fn set_context_var<S: AsRef<str>>(&mut self, key: S, value: serde_yaml::Value) {
+    pub fn set_context_var<S: AsRef<str>>(
+        &mut self,
+        key: S,
+        value: serde_yaml::Value,
+    ) {
         self.context_vars.insert(key.as_ref().to_string(), value);
     }
 
     /// 获取上下文变量
-    pub fn get_context_var<S: AsRef<str>>(&self, key: S) -> Option<&serde_yaml::Value> {
+    pub fn get_context_var<S: AsRef<str>>(
+        &self,
+        key: S,
+    ) -> Option<&serde_yaml::Value> {
         self.context_vars.get(key.as_ref())
     }
 
     /// 求值表达式字符串
     pub fn evaluate(&self, expression: &str) -> Result<serde_yaml::Value> {
         // 处理环境变量引用: ${{ env.VAR_NAME }}
-        let env_regex =
-            Regex::new(r"\$\{\{\s*env\.(\w+)\s*\}\}").context("Failed to compile env regex")?;
+        let env_regex = Regex::new(r"\$\{\{\s*env\.(\w+)\s*\}\}")
+            .context("Failed to compile env regex")?;
 
         let mut result = expression.to_string();
 
@@ -61,8 +71,8 @@ impl ExpressionEvaluator {
         }
 
         // 处理流程变量引用: ${{ vars.VAR_NAME }}
-        let vars_regex =
-            Regex::new(r"\$\{\{\s*vars\.(\w+)\s*\}\}").context("Failed to compile vars regex")?;
+        let vars_regex = Regex::new(r"\$\{\{\s*vars\.(\w+)\s*\}\}")
+            .context("Failed to compile vars regex")?;
 
         for cap in vars_regex.captures_iter(&result.clone()) {
             let var_name = &cap[1];
@@ -70,13 +80,16 @@ impl ExpressionEvaluator {
                 let value_str = self.yaml_value_to_string(var_value);
                 result = result.replace(&cap[0], &value_str);
             } else {
-                return Err(anyhow::anyhow!("Flow variable not found: {}", var_name));
+                return Err(anyhow::anyhow!(
+                    "Flow variable not found: {}",
+                    var_name
+                ));
             }
         }
 
         // 处理任务输出引用: ${task.action.outputs.field}
-        let output_regex =
-            Regex::new(r"\$\{([^}]+)\}").context("Failed to compile output regex")?;
+        let output_regex = Regex::new(r"\$\{([^}]+)\}")
+            .context("Failed to compile output regex")?;
 
         for cap in output_regex.captures_iter(&result.clone()) {
             let path = &cap[1];
@@ -84,7 +97,10 @@ impl ExpressionEvaluator {
                 let value_str = self.yaml_value_to_string(&value);
                 result = result.replace(&cap[0], &value_str);
             } else {
-                return Err(anyhow::anyhow!("Context path not found: {}", path));
+                return Err(anyhow::anyhow!(
+                    "Context path not found: {}",
+                    path
+                ));
             }
         }
 
@@ -127,7 +143,10 @@ impl ExpressionEvaluator {
         }
     }
 
-    fn resolve_context_path(&self, path: &str) -> Result<Option<serde_yaml::Value>> {
+    fn resolve_context_path(
+        &self,
+        path: &str,
+    ) -> Result<Option<serde_yaml::Value>> {
         let parts: Vec<&str> = path.split('.').collect();
 
         if parts.len() < 2 {
@@ -256,7 +275,10 @@ mod tests {
         evaluator.set_flow_vars(flow_vars);
 
         let result = evaluator.evaluate("${{ vars.name }}").unwrap();
-        assert_eq!(result, serde_yaml::Value::String("FlowBuilder".to_string()));
+        assert_eq!(
+            result,
+            serde_yaml::Value::String("FlowBuilder".to_string())
+        );
     }
 
     #[test]

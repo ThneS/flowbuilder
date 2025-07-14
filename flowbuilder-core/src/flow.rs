@@ -21,7 +21,10 @@ impl Flow {
     }
 
     /// Execute the flow with a custom context
-    pub async fn execute_with_context(self, context: FlowContext) -> Result<FlowContext> {
+    pub async fn execute_with_context(
+        self,
+        context: FlowContext,
+    ) -> Result<FlowContext> {
         let shared_context = Arc::new(Mutex::new(context));
         let executor = FlowExecutor::new();
 

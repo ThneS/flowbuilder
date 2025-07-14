@@ -9,46 +9,58 @@ pub struct WorkflowLoader;
 impl WorkflowLoader {
     /// 从 YAML 文件加载工作流配置
     pub fn from_yaml_file<P: AsRef<Path>>(path: P) -> Result<WorkflowConfig> {
-        let content = fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read YAML file: {:?}", path.as_ref()))?;
+        let content = fs::read_to_string(&path).with_context(|| {
+            format!("Failed to read YAML file: {:?}", path.as_ref())
+        })?;
         Self::from_yaml_str(&content)
     }
 
     /// 从 YAML 字符串加载工作流配置
     pub fn from_yaml_str(content: &str) -> Result<WorkflowConfig> {
-        serde_yaml::from_str(content).with_context(|| "Failed to parse YAML content")
+        serde_yaml::from_str(content)
+            .with_context(|| "Failed to parse YAML content")
     }
 
     /// 从 JSON 文件加载工作流配置
     pub fn from_json_file<P: AsRef<Path>>(path: P) -> Result<WorkflowConfig> {
-        let content = fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read JSON file: {:?}", path.as_ref()))?;
+        let content = fs::read_to_string(&path).with_context(|| {
+            format!("Failed to read JSON file: {:?}", path.as_ref())
+        })?;
         Self::from_json_str(&content)
     }
 
     /// 从 JSON 字符串加载工作流配置
     pub fn from_json_str(content: &str) -> Result<WorkflowConfig> {
-        serde_json::from_str(content).with_context(|| "Failed to parse JSON content")
+        serde_json::from_str(content)
+            .with_context(|| "Failed to parse JSON content")
     }
 
     /// 保存工作流配置到 YAML 文件
-    pub fn save_to_yaml<P: AsRef<Path>>(config: &WorkflowConfig, path: P) -> Result<()> {
-        let yaml_content =
-            serde_yaml::to_string(config).with_context(|| "Failed to serialize config to YAML")?;
+    pub fn save_to_yaml<P: AsRef<Path>>(
+        config: &WorkflowConfig,
+        path: P,
+    ) -> Result<()> {
+        let yaml_content = serde_yaml::to_string(config)
+            .with_context(|| "Failed to serialize config to YAML")?;
 
-        fs::write(&path, yaml_content)
-            .with_context(|| format!("Failed to write YAML file: {:?}", path.as_ref()))?;
+        fs::write(&path, yaml_content).with_context(|| {
+            format!("Failed to write YAML file: {:?}", path.as_ref())
+        })?;
 
         Ok(())
     }
 
     /// 保存工作流配置到 JSON 文件
-    pub fn save_to_json<P: AsRef<Path>>(config: &WorkflowConfig, path: P) -> Result<()> {
+    pub fn save_to_json<P: AsRef<Path>>(
+        config: &WorkflowConfig,
+        path: P,
+    ) -> Result<()> {
         let json_content = serde_json::to_string_pretty(config)
             .with_context(|| "Failed to serialize config to JSON")?;
 
-        fs::write(&path, json_content)
-            .with_context(|| format!("Failed to write JSON file: {:?}", path.as_ref()))?;
+        fs::write(&path, json_content).with_context(|| {
+            format!("Failed to write JSON file: {:?}", path.as_ref())
+        })?;
 
         Ok(())
     }
@@ -64,14 +76,19 @@ impl WorkflowLoader {
 
         // 检查任务定义
         if workflow.tasks.is_empty() {
-            return Err(anyhow::anyhow!("Workflow must contain at least one task"));
+            return Err(anyhow::anyhow!(
+                "Workflow must contain at least one task"
+            ));
         }
 
         // 检查任务 ID 的唯一性
         let mut task_ids = std::collections::HashSet::new();
         for task in &workflow.tasks {
             if !task_ids.insert(&task.task.id) {
-                return Err(anyhow::anyhow!("Duplicate task ID: {}", task.task.id));
+                return Err(anyhow::anyhow!(
+                    "Duplicate task ID: {}",
+                    task.task.id
+                ));
             }
         }
 
@@ -79,9 +96,13 @@ impl WorkflowLoader {
         let mut action_ids = std::collections::HashSet::new();
         for task in &workflow.tasks {
             for action in &task.task.actions {
-                let full_action_id = format!("{}.{}", task.task.id, action.action.id);
+                let full_action_id =
+                    format!("{}.{}", task.task.id, action.action.id);
                 if !action_ids.insert(full_action_id.clone()) {
-                    return Err(anyhow::anyhow!("Duplicate action ID: {}", full_action_id));
+                    return Err(anyhow::anyhow!(
+                        "Duplicate action ID: {}",
+                        full_action_id
+                    ));
                 }
             }
         }
@@ -100,8 +121,6 @@ impl WorkflowLoader {
     /// 快速执行工作流文件（使用 runtime 功能）
     pub async fn execute_workflow_file<P: AsRef<Path>>(
         path: P,
-        use_scheduler: bool,
-        use_orchestrator: bool,
     ) -> Result<()> {
         let config = Self::from_yaml_file(path)?;
         Self::validate(&config)?;
@@ -111,13 +130,8 @@ impl WorkflowLoader {
             flowbuilder_context::FlowContext::default(),
         ));
 
-        if use_scheduler {
-            executor.execute_with_scheduler(context).await?;
-        } else if use_orchestrator {
-            executor.execute_with_orchestrator(context).await?;
-        } else {
-            executor.execute(context).await?;
-        }
+        // 使用统一的执行接口
+        executor.execute(context).await?;
 
         Ok(())
     }
@@ -127,15 +141,15 @@ impl WorkflowLoader {
         paths: Vec<P>,
         max_concurrent: usize,
     ) -> Result<Vec<Result<()>>> {
-        let semaphore = std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrent));
+        let semaphore =
+            std::sync::Arc::new(tokio::sync::Semaphore::new(max_concurrent));
         let mut results = Vec::new();
 
         for path in paths {
-            let _permit = semaphore
-                .acquire()
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to acquire semaphore: {}", e))?;
-            let result = Self::execute_workflow_file(path, true, false).await;
+            let _permit = semaphore.acquire().await.map_err(|e| {
+                anyhow::anyhow!("Failed to acquire semaphore: {}", e)
+            })?;
+            let result = Self::execute_workflow_file(path).await;
             results.push(result);
         }
 

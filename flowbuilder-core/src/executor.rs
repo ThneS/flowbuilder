@@ -11,7 +11,11 @@ impl FlowExecutor {
     }
 
     /// Execute a list of steps sequentially
-    pub async fn execute_steps(&self, steps: Vec<Step>, context: SharedContext) -> Result<()> {
+    pub async fn execute_steps(
+        &self,
+        steps: Vec<Step>,
+        context: SharedContext,
+    ) -> Result<()> {
         for step in steps {
             step(context.clone()).await?;
         }

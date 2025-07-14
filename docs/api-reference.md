@@ -1,244 +1,261 @@
 # FlowBuilder API 参考
 
-## 核心类型
+## 核心 API
 
-### FlowBuilder
+### DynamicFlowExecutor
 
-主要的流程构建器类型，用于创建和执行工作流。
+统一的流程执行器，实现新的分层架构。
 
 ```rust
-pub struct FlowBuilder {
-    steps: Vec<Box<dyn Step>>,
-    context: Context,
+pub struct DynamicFlowExecutor {
+    config: WorkflowConfig,
+    parser: YamlConfigParser,
+    orchestrator: EnhancedFlowOrchestrator,
+    executor: EnhancedTaskExecutor,
+    evaluator: ExpressionEvaluator,
 }
 ```
 
 #### 方法
 
 ##### new
+
 ```rust
-pub fn new() -> Self
+pub fn new(config: WorkflowConfig) -> Result<Self>
 ```
-创建一个新的 FlowBuilder 实例。
 
-##### step
+创建新的动态流程执行器。
+
+##### from_yaml
+
 ```rust
-pub fn step<F>(self, func: F) -> Self
-where
-    F: Fn(&mut Context) -> Result<()> + Send + Sync + 'static
+pub fn from_yaml(yaml_content: &str) -> Result<Self>
 ```
-添加一个基本步骤。
 
-##### named_step
+从 YAML 字符串创建执行器。
+
+##### execute
+
 ```rust
-pub fn named_step<F>(self, name: &str, func: F) -> Self
-where
-    F: Fn(&mut Context) -> Result<()> + Send + Sync + 'static
+pub async fn execute(&mut self, context: SharedContext) -> Result<ExecutionResult>
 ```
-添加一个带名称的步骤。
 
-##### step_if
+执行工作流。
+
+##### get_execution_plan_preview
+
 ```rust
-pub fn step_if<F, P>(self, predicate: P, func: F) -> Self
-where
-    F: Fn(&mut Context) -> Result<()> + Send + Sync + 'static,
-    P: Fn(&Context) -> bool + Send + Sync + 'static
+pub fn get_execution_plan_preview(&self) -> Result<ExecutionPlan>
 ```
-添加一个条件步骤。
 
-##### step_handle_error
+获取执行计划预览（不执行）。
+
+##### analyze_workflow_complexity
+
 ```rust
-pub fn step_handle_error<F, H>(self, name: &str, func: F, handler: H) -> Self
-where
-    F: Fn(&mut Context) -> Result<()> + Send + Sync + 'static,
-    H: Fn(&mut Context, Error) -> Result<()> + Send + Sync + 'static
+pub fn analyze_workflow_complexity(&self) -> Result<ExecutionComplexity>
 ```
-添加一个带错误处理的步骤。
 
-##### wait_until
-```rust
-pub fn wait_until<P>(self, predicate: P, interval: Duration, max_attempts: usize) -> Self
-where
-    P: Fn(&Context) -> bool + Send + Sync + 'static
-```
-添加一个等待条件满足的步骤。
+分析工作流复杂度。
 
-##### subflow
-```rust
-pub fn subflow<F>(self, name: &str, flow: F) -> Self
-where
-    F: FnOnce(Context) -> Future<Output = Result<Context>> + Send + 'static
-```
-添加一个子流程。
+### YamlConfigParser
 
-##### subflow_if
-```rust
-pub fn subflow_if<P, F>(self, predicate: P, flow: F) -> Self
-where
-    P: Fn(&Context) -> bool + Send + Sync + 'static,
-    F: FnOnce(Context) -> Future<Output = Result<Context>> + Send + 'static
-```
-添加一个条件子流程。
-
-##### run_all
-```rust
-pub async fn run_all(self) -> Result<()>
-```
-运行所有步骤。
-
-### Context
-
-流程上下文，用于在步骤间共享数据。
+YAML 配置解析器。
 
 ```rust
-pub struct Context {
-    data: HashMap<String, Box<dyn Any + Send + Sync>>,
-    errors: Vec<String>,
+pub struct YamlConfigParser {
+    config: WorkflowConfig,
 }
 ```
 
 #### 方法
 
 ##### new
+
+```rust
+pub fn new(config: WorkflowConfig) -> Self
+```
+
+创建新的配置解析器。
+
+##### parse
+
+```rust
+pub fn parse(&self) -> Result<Vec<ExecutionNode>>
+```
+
+解析配置，生成执行节点列表。
+
+##### parse_full
+
+```rust
+pub fn parse_full(&self) -> Result<ParseResult>
+```
+
+解析配置并返回完整结果。
+
+### EnhancedFlowOrchestrator
+
+增强的流程编排器。
+
+```rust
+pub struct EnhancedFlowOrchestrator {
+    config: OrchestratorConfig,
+}
+```
+
+#### 方法
+
+##### new
+
 ```rust
 pub fn new() -> Self
 ```
-创建一个新的上下文实例。
 
-##### insert
+创建新的编排器。
+
+##### create_execution_plan
+
 ```rust
-pub fn insert<T: 'static + Send + Sync>(&mut self, key: &str, value: T)
+pub fn create_execution_plan(
+    &self,
+    nodes: Vec<ExecutionNode>,
+    env_vars: HashMap<String, serde_yaml::Value>,
+    flow_vars: HashMap<String, serde_yaml::Value>,
+    workflow_name: String,
+    workflow_version: String,
+) -> Result<ExecutionPlan>
 ```
-在上下文中插入一个值。
 
-##### get
+从节点列表创建执行计划。
+
+##### analyze_complexity
+
 ```rust
-pub fn get<T: 'static>(&self, key: &str) -> Option<&T>
+pub fn analyze_complexity(&self, plan: &ExecutionPlan) -> ExecutionComplexity
 ```
-从上下文中获取一个值。
 
-##### remove
-```rust
-pub fn remove<T: 'static>(&mut self, key: &str) -> Option<T>
-```
-从上下文中移除一个值。
+分析执行计划的复杂度。
 
-##### snapshot
-```rust
-pub fn snapshot(&self) -> Result<ContextSnapshot>
-```
-创建上下文的快照。
+### EnhancedTaskExecutor
 
-##### restore
-```rust
-pub fn restore(&mut self, snapshot: &ContextSnapshot) -> Result<()>
-```
-从快照恢复上下文。
-
-### Error
-
-自定义错误类型。
+增强的任务执行器。
 
 ```rust
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("步骤执行失败: {0}")]
-    StepExecution(String),
-
-    #[error("超时错误: {0}")]
-    Timeout(String),
-
-    #[error("上下文错误: {0}")]
-    Context(String),
-
-    #[error("其他错误: {0}")]
-    Other(#[from] anyhow::Error),
+pub struct EnhancedTaskExecutor {
+    config: ExecutorConfig,
 }
 ```
 
-## 特性
+#### 方法
 
-### Step
-
-步骤特征，用于定义可执行的步骤。
+##### new
 
 ```rust
-pub trait Step: Send + Sync {
-    async fn execute(&self, ctx: &mut Context) -> Result<()>;
+pub fn new() -> Self
+```
+
+创建新的任务执行器。
+
+##### execute_plan
+
+```rust
+pub async fn execute_plan(
+    &mut self,
+    plan: ExecutionPlan,
+    context: SharedContext,
+) -> Result<ExecutionResult>
+```
+
+执行执行计划。
+
+## 数据结构
+
+### ExecutionPlan
+
+执行计划，包含执行阶段和元数据。
+
+```rust
+pub struct ExecutionPlan {
+    pub phases: Vec<ExecutionPhase>,
+    pub metadata: PlanMetadata,
+    pub env_vars: HashMap<String, serde_yaml::Value>,
+    pub flow_vars: HashMap<String, serde_yaml::Value>,
 }
 ```
 
-### ContextSnapshot
+### ExecutionNode
 
-上下文快照特征，用于保存和恢复上下文状态。
+执行节点，表示单个任务或动作。
 
 ```rust
-pub trait ContextSnapshot: Send + Sync {
-    fn restore(&self, ctx: &mut Context) -> Result<()>;
+pub struct ExecutionNode {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub node_type: NodeType,
+    pub action_spec: ActionSpec,
+    pub dependencies: Vec<String>,
+    pub retry_config: Option<RetryConfig>,
+    pub timeout_config: Option<TimeoutConfig>,
 }
 ```
 
-## 常量
+### WorkflowConfig
 
-### 默认值
+工作流配置，从 YAML 解析得到。
 
 ```rust
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
-pub const DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(1);
-pub const DEFAULT_MAX_RETRIES: usize = 3;
+pub struct WorkflowConfig {
+    pub workflow: WorkflowInfo,
+}
+
+pub struct WorkflowInfo {
+    pub version: String,
+    pub env: HashMap<String, String>,
+    pub vars: HashMap<String, serde_yaml::Value>,
+    pub tasks: Vec<TaskWrapper>,
+}
 ```
 
-## 类型别名
+### ExecutionResult
+
+执行结果，包含成功状态和详细信息。
 
 ```rust
-pub type Result<T> = std::result::Result<T, Error>;
+pub struct ExecutionResult {
+    pub success: bool,
+    pub phase_results: Vec<PhaseResult>,
+    pub total_duration: std::time::Duration,
+    pub nodes_executed: usize,
+    pub errors: Vec<String>,
+    pub stats: ExecutionStats,
+}
 ```
 
 ## 错误处理
 
-### 错误类型
+所有 API 方法都返回 `Result<T, anyhow::Error>`，确保错误信息的完整性和可追溯性。
 
-FlowBuilder 使用自定义的 `Error` 枚举类型来处理各种错误情况：
+### 常见错误类型
 
-- `StepExecution`: 步骤执行失败
-- `Timeout`: 操作超时
-- `Context`: 上下文相关错误
-- `Other`: 其他类型的错误
+-   **配置解析错误**: YAML 格式错误或缺少必要字段
+-   **执行计划创建错误**: 节点依赖循环或无效配置
+-   **任务执行错误**: 任务执行失败或超时
+-   **上下文错误**: 上下文访问失败或状态不一致
 
-### 错误转换
+## 特性 (Features)
 
-FlowBuilder 提供了从标准库错误类型到自定义错误类型的转换：
+### 默认特性
 
-```rust
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Error::Other(err.into())
-    }
-}
+-   `core`: 核心流程构建功能
+-   `yaml`: YAML 配置支持
+-   `runtime`: 运行时增强功能
 
-impl From<serde_json::Error> for Error {
-    fn from(err: serde_json::Error) -> Self {
-        Error::Other(err.into())
-    }
-}
-```
+### 可选特性
 
-## 日志和追踪
+所有功能默认启用，项目专注于核心工作流执行功能。
 
-FlowBuilder 集成了 `tracing` 库用于日志记录和追踪：
+## 示例
 
-```rust
-use tracing::{debug, info, warn, error};
-
-// 在步骤中使用
-async fn logged_step(ctx: &mut Context) -> Result<()> {
-    info!("开始执行步骤");
-    // ... 执行逻辑 ...
-    debug!("步骤执行完成");
-    Ok(())
-}
-```
-
-## 示例（已移除）：
-
-示例文件（如 basic_usage.rs、subflow_example.rs、parallel_execution.rs）已移除，请参考项目文档或后续更新。
+查看 `examples/new_architecture_demo.rs` 获取完整的 API 使用示例。

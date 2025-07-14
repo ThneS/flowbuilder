@@ -5,7 +5,7 @@
 tab_spaces = 4
 
 # 每行最大长度
-max_width = 100
+max_width = 80
 
 # 导入语句设置
 reorder_imports = true # 重新排序导入

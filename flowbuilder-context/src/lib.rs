@@ -77,7 +77,9 @@ impl FlowContext {
         description: String,
     ) -> Result<(), String> {
         if self.snapshots.contains_key(&snapshot_id) {
-            return Err(format!("Snapshot with id '{snapshot_id}' already exists"));
+            return Err(format!(
+                "Snapshot with id '{snapshot_id}' already exists"
+            ));
         }
 
         let snapshot = ContextSnapshot {
@@ -107,7 +109,10 @@ impl FlowContext {
     }
 
     /// 回滚到快照
-    pub fn rollback_to_snapshot(&mut self, snapshot_id: &str) -> Result<(), String> {
+    pub fn rollback_to_snapshot(
+        &mut self,
+        snapshot_id: &str,
+    ) -> Result<(), String> {
         let snapshot = self
             .snapshots
             .get(snapshot_id)
@@ -331,7 +336,8 @@ impl FlowContext {
     }
 
     pub fn print_summary(&self) {
-        let summary = format!("\n=== Flow Summary [trace_id: {}] ===", self.trace_id);
+        let summary =
+            format!("\n=== Flow Summary [trace_id: {}] ===", self.trace_id);
 
         #[cfg(feature = "logger")]
         tracing::info!("{}", summary);

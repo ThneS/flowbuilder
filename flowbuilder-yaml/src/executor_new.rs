@@ -2,7 +2,9 @@
 //!
 //! 实现新的分层架构：配置解析器 → 流程编排器 → 任务执行器
 
-use crate::config::WorkflowConfig;
+use crate::config::{
+    ActionDefinition, ActionType, FlowControl, WorkflowConfig,
+};
 use crate::config_parser::YamlConfigParser;
 use crate::expression::ExpressionEvaluator;
 use anyhow::{Context, Result};
@@ -10,11 +12,10 @@ use flowbuilder_context::SharedContext;
 use flowbuilder_core::{ExecutionPlan, Executor, ExecutorStatus};
 use flowbuilder_runtime::{
     EnhancedFlowOrchestrator, EnhancedTaskExecutor, ExecutionComplexity,
-    ExecutionResult, ExecutionStats, ExecutorConfig,
+    ExecutionResult, ExecutorConfig,
 };
-
-#[cfg(test)]
 use std::sync::Arc;
+use std::time::Duration;
 
 /// 统一的动态流程执行器
 pub struct DynamicFlowExecutor {
@@ -99,17 +100,11 @@ impl DynamicFlowExecutor {
         println!("  节点数量: {}", parse_result.nodes.len());
 
         // 第2步：流程编排，生成执行计划
-        let env_vars = parse_result
-            .env_vars
-            .into_iter()
-            .map(|(k, v)| (k, serde_yaml::Value::String(v)))
-            .collect();
-
         let execution_plan = self
             .orchestrator
             .create_execution_plan(
                 parse_result.nodes,
-                env_vars,
+                parse_result.env_vars,
                 parse_result.flow_vars,
                 parse_result.workflow_name,
                 parse_result.workflow_version,
@@ -158,15 +153,9 @@ impl DynamicFlowExecutor {
     pub fn get_execution_plan_preview(&self) -> Result<ExecutionPlan> {
         let parse_result = self.parser.parse_full().context("配置解析失败")?;
 
-        let env_vars = parse_result
-            .env_vars
-            .into_iter()
-            .map(|(k, v)| (k, serde_yaml::Value::String(v)))
-            .collect();
-
         self.orchestrator.create_execution_plan(
             parse_result.nodes,
-            env_vars,
+            parse_result.env_vars,
             parse_result.flow_vars,
             parse_result.workflow_name,
             parse_result.workflow_version,
@@ -191,11 +180,6 @@ impl DynamicFlowExecutor {
             .map_err(|e| anyhow::anyhow!("执行计划验证失败: {}", e))?;
 
         Ok(())
-    }
-
-    /// 获取执行统计信息
-    pub fn get_stats(&self) -> &ExecutionStats {
-        self.executor.get_stats()
     }
 
     /// 获取工作流信息

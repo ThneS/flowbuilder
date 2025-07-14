@@ -11,9 +11,7 @@ repository = "https://github.com/ThneS/flowbuilder.git"
 
 [dependencies]
 flowbuilder-core = { path = "../flowbuilder-core" }
-flowbuilder-macros = { path = "../flowbuilder-macros", optional = true }
 flowbuilder-context = { path = "../flowbuilder-context" }
-flowbuilder-logger = { path = "../flowbuilder-logger", optional = true }
 flowbuilder-runtime = { path = "../flowbuilder-runtime", optional = true }
 flowbuilder-yaml = { path = "../flowbuilder-yaml", optional = true }
 
@@ -22,14 +20,12 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 
 [features]
-default = ["core"]
+default = ["core", "yaml", "runtime"]
 core = ["flowbuilder-core/default"]
-macros = ["dep:flowbuilder-macros", "flowbuilder-core/macros"]
-logger = ["dep:flowbuilder-logger", "flowbuilder-core/logger"]
 runtime = ["dep:flowbuilder-runtime", "flowbuilder-core/runtime"]
 yaml = ["dep:flowbuilder-yaml"]
-full = ["macros", "logger", "runtime", "yaml"]
 
-# Legacy features for backwards compatibility
-mvp = ["core"]
-strong = ["logger"]
+[[example]]
+name = "new_architecture_demo"
+path = "examples/new_architecture_demo.rs"
+required-features = ["yaml", "runtime"]

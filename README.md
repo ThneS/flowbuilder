@@ -1,157 +1,192 @@
 # FlowBuilder
 
-> 🚀 **Enterprise-grade async workflow engine for Rust** - 支持分布式追踪、超时控制、并行执行、快照回滚的生产级异步工作流引擎
+> 🚀 **企业级异步工作流引擎** - 基于 Rust 的高性能工作流引擎，支持 YAML 配置驱动、分层架构设计
 
 [![Crates.io](https://img.shields.io/crates/v/flowbuilder.svg)](https://crates.io/crates/flowbuilder)
 [![Documentation](https://docs.rs/flowbuilder/badge.svg)](https://docs.rs/flowbuilder)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-## ✨ Features | 核心特性
+## ✨ 核心特性
 
-### 🎯 **Flow Control | 流程控制**
+### �️ **分层架构设计**
 
--   ✅ **Conditional branching** - `step_if()`, `subflow_if()` | 条件分支
--   ✅ **Loops & waits** - `step_while()`, `step_wait_until()` | 循环等待
--   ✅ **Nested subflows** - Complex workflow composition | 嵌套子流程
--   ✅ **Error handling** - Continue on error or auto-rollback | 错误处理
+-   ✅ **配置解析器** - YAML 配置解析和验证
+-   ✅ **流程编排器** - 智能执行计划生成和优化
+-   ✅ **任务执行器** - 高性能任务执行和控制
+-   ✅ **统一接口** - 清晰的分层抽象和标准接口
 
-### ⚡ **Performance & Concurrency | 性能并发**
+### ⚡ **高性能执行**
 
--   ✅ **Parallel execution** - `parallel_steps_with_join()` | 并行执行
--   ✅ **Timeout control** - Step-level & flow-level timeouts | 超时控制
--   ✅ **Async/await native** - Zero-cost abstractions | 原生异步支持
--   ✅ **Resource management** - Automatic cleanup | 资源管理
+-   ✅ **并行执行** - 自动分析依赖，最大化并行度
+-   ✅ **异步原生** - 基于 Tokio 的零成本异步抽象
+-   ✅ **资源控制** - 可配置的并发限制和背压控制
+-   ✅ **执行优化** - 智能执行计划优化
 
-### 🔍 **Observability | 可观测性**
+### � **YAML 配置驱动**
 
--   ✅ **Distributed tracing** - Unique trace IDs across flows | 分布式追踪
--   ✅ **Performance metrics** - Step timing & execution stats | 性能指标
--   ✅ **Structured logging** - Rich context information | 结构化日志
--   ✅ **Error tracking** - Detailed error propagation | 错误追踪
+-   ✅ **声明式配置** - 完整的 YAML 工作流定义
+-   ✅ **配置验证** - 自动配置完整性检查
+-   ✅ **环境变量** - 支持环境变量和流程变量
+-   ✅ **热重载** - 支持配置动态加载
 
-### 🛡️ **Reliability | 可靠性**
+### 🛡️ **企业级可靠性**
 
--   ✅ **State snapshots** - Create checkpoints for rollback | 状态快照
--   ✅ **Auto-rollback** - Automatic recovery on failure | 自动回滚
--   ✅ **Retry mechanisms** - Configurable retry strategies | 重试机制
--   ✅ **Circuit breakers** - Fail-fast patterns | 熔断器模式
+-   ✅ **错误恢复** - 多层次错误处理和恢复机制
+-   ✅ **重试策略** - 可配置的智能重试
+-   ✅ **超时控制** - 任务级和全局超时管理
+-   ✅ **可观测性** - 完整的执行追踪和指标
 
-## 🚀 Quick Start | 快速开始
+## 🚀 快速开始
 
-Add to your `Cargo.toml`:
+### 安装
+
+在 `Cargo.toml` 中添加依赖：
 
 ```toml
 [dependencies]
-flowbuilder = "0.0.2"
+flowbuilder = { version = "0.0.2", features = ["yaml", "runtime"] }
 tokio = { version = "1.0", features = ["full"] }
 ```
 
-### Basic Example | 基础示例
+### YAML 配置示例
+
+```yaml
+workflow:
+    version: "1.0"
+    env:
+        ENVIRONMENT: "production"
+        LOG_LEVEL: "info"
+    vars:
+        max_retries: 3
+        timeout: 30
+    tasks:
+        - task:
+              id: "setup"
+              name: "环境设置"
+              description: "初始化执行环境"
+              actions:
+                  - action:
+                        id: "init"
+                        name: "初始化"
+                        type: "builtin"
+                        flow:
+                            retry:
+                                max_retries: 2
+                                delay: 1000
+                            timeout:
+                                duration: 5000
+        - task:
+              id: "process"
+              name: "数据处理"
+              description: "处理业务数据"
+              actions:
+                  - action:
+                        id: "process_data"
+                        name: "数据处理"
+                        type: "builtin"
+```
+
+### 代码示例
 
 ```rust
-use flowbuilder::prelude::*;
-use anyhow::Result;
-use std::time::Duration;
+use flowbuilder_yaml::prelude::*;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    FlowBuilder::new()
-        .named_step("setup", |ctx| async move {
-            let mut guard = ctx.lock().await;
-            guard.set_variable("counter".to_string(), "0".to_string());
-            println!("Setup completed");
-            Ok(())
-        })
-        .step_if(
-            |ctx| ctx.get_variable("counter").is_some(),
-            |ctx| async move {
-                println!("Counter exists, proceeding...");
-                Ok(())
-            }
-        )
-        .named_step("finish", |_ctx| async move {
-            println!("Flow completed!");
-            Ok(())
-        })
-        .run_all()
-        .await?;
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 从 YAML 配置创建执行器
+    let yaml_content = std::fs::read_to_string("workflow.yaml")?;
+    let mut executor = DynamicFlowExecutor::from_yaml(&yaml_content)?;
+
+    // 创建执行上下文
+    let context = std::sync::Arc::new(tokio::sync::Mutex::new(
+        flowbuilder_context::FlowContext::default()
+    ));
+
+    // 执行工作流
+    let result = executor.execute(context).await?;
+
+    println!("工作流执行完成: {}", result.success);
+    println!("总耗时: {:?}", result.total_duration);
+    println!("执行节点数: {}", result.nodes_executed);
 
     Ok(())
 }
 ```
 
-## 📖 Advanced Examples | 高级示例
+## 🏗️ 架构设计
 
-### 1. **Timeout Control | 超时控制**
+FlowBuilder 采用分层架构设计，确保高性能、可扩展性和易维护性：
 
-```rust
-FlowBuilder::new()
-    .step_with_timeout("api_call", Duration::from_secs(5), |_ctx| async move {
-        // Your long-running operation
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        println!("API call completed within timeout");
-        Ok(())
-    })
-    .run_all_with_timeout(Duration::from_secs(30)) // Overall flow timeout
-    .await?;
+```
+┌─────────────────────┐
+│   YAML 配置文件     │
+└─────────────────────┘
+           ↓
+┌─────────────────────┐
+│  YamlConfigParser   │  ← 配置解析器
+│  • 解析 YAML 配置   │
+│  • 验证配置完整性   │
+│  • 生成执行节点     │
+└─────────────────────┘
+           ↓
+┌─────────────────────┐
+│ EnhancedOrchestrator│  ← 流程编排器
+│  • 创建执行计划     │
+│  • 优化执行顺序     │
+│  • 分析工作流复杂度 │
+└─────────────────────┘
+           ↓
+┌─────────────────────┐
+│  EnhancedExecutor   │  ← 任务执行器
+│  • 执行具体任务     │
+│  • 并行执行控制     │
+│  • 重试和超时处理   │
+└─────────────────────┘
 ```
 
-### 2. **Parallel Execution with Join | 并行执行与聚合**
+### 核心组件
 
-```rust
-FlowBuilder::new()
-    .parallel_steps_with_join("health_checks", vec![
-        || FlowBuilder::new()
-            .named_step("database_check", |_ctx| async move {
-                // Database health check
-                Ok(())
-            }),
-        || FlowBuilder::new()
-            .named_step("api_check", |_ctx| async move {
-                // API health check
-                Ok(())
-            }),
-        || FlowBuilder::new()
-            .named_step("cache_check", |_ctx| async move {
-                // Cache health check
-                Ok(())
-            }),
-    ])
-    .named_step("verify_results", |ctx| async move {
-        let guard = ctx.lock().await;
-        let success = guard.get_variable("health_checks_parallel_success").unwrap();
-        println!("Health checks passed: {}", success);
-        Ok(())
-    })
-    .run_all()
-    .await?;
-```
+-   **配置解析器**: 负责 YAML 配置的解析、验证和结构化
+-   **流程编排器**: 创建优化的执行计划，处理依赖关系
+-   **任务执行器**: 高性能的任务执行，支持并行、重试、超时等
 
-### 3. **State Snapshots & Rollback | 状态快照与回滚**
+## 📊 性能特点
 
-```rust
-FlowBuilder::new()
-    .named_step("setup", |ctx| async move {
-        let mut guard = ctx.lock().await;
-        guard.set_variable("important_data".to_string(), "original".to_string());
-        Ok(())
+-   **零成本抽象** - 编译时优化，运行时高效
+-   **异步优先设计** - 原生 Tokio 集成，高并发支持
+-   **内存高效** - 最小化内存分配和复制
+-   **智能并行** - 自动分析依赖，最大化并行执行机会
+
+## 🔧 配置驱动
+
+### 支持的配置特性
+
+-   **任务定义** - 声明式任务和动作配置
+-   **依赖管理** - 自动处理任务间依赖关系
+-   **重试策略** - 可配置的重试次数和延迟
+-   **超时控制** - 任务级和全局超时设置
+-   **环境变量** - 支持环境变量和流程变量
+-   **条件执行** - 基于条件的任务执行控制
+    guard.set_variable("important_data".to_string(), "original".to_string());
+    Ok(())
     })
     .create_snapshot("checkpoint", "Before risky operation")
     .step_with_rollback("risky_operation", "auto_checkpoint", |ctx| async move {
-        let mut guard = ctx.lock().await;
-        guard.set_variable("important_data".to_string(), "modified".to_string());
-        // This will fail and trigger automatic rollback
-        anyhow::bail!("Operation failed")
+    let mut guard = ctx.lock().await;
+    guard.set_variable("important_data".to_string(), "modified".to_string());
+    // This will fail and trigger automatic rollback
+    anyhow::bail!("Operation failed")
     })
     .named_step("verify", |ctx| async move {
-        let guard = ctx.lock().await;
-        // Data is automatically rolled back to "original"
-        assert_eq!(guard.get_variable("important_data"), Some(&"original".to_string()));
-        Ok(())
+    let guard = ctx.lock().await;
+    // Data is automatically rolled back to "original"
+    assert_eq!(guard.get_variable("important_data"), Some(&"original".to_string()));
+    Ok(())
     })
     .run_all()
     .await?;
-```
+
+````
 
 ### 4. **Distributed Tracing | 分布式追踪**
 
@@ -172,7 +207,7 @@ FlowBuilder::new()
 // Output includes trace ID in all logs:
 // [trace_id:user-request-12345] [step:service_a] starting...
 // [trace_id:user-request-12345] [step:service_a] completed successfully in 1.2ms
-```
+````
 
 ### 5. **Error Handling Strategies | 错误处理策略**
 
@@ -264,36 +299,47 @@ cargo test
 
 Run specific test suites:
 
+## 📚 文档
+
+-   [快速入门](docs/getting-started.md) - 安装和基本使用
+-   [架构设计](docs/architecture.md) - 分层架构详解
+-   [API 参考](docs/api-reference.md) - 完整 API 文档
+
+## 📝 示例
+
+查看 `examples/new_architecture_demo.rs` 获取完整的使用示例。
+
+## 🧪 测试
+
+运行所有测试：
+
 ```bash
-cargo test --test trace_tests          # Tracing functionality
-cargo test --test advanced_features    # Advanced features
-cargo test --test flow_test            # Basic flow tests
+cargo test
 ```
 
-## 📚 Documentation | 文档
+运行示例：
 
--   [API Reference](docs/api-reference.md) - Complete API documentation | 完整 API 文档
--   [Advanced Usage](docs/advanced-usage.md) - Complex patterns and best practices | 高级用法和最佳实践
--   [Getting Started](docs/getting-started.md) - Tutorial and examples | 教程和示例
--   [Trace Features](docs/trace-features.md) - Observability and debugging | 可观测性和调试
+```bash
+cargo run --example new_architecture_demo
+```
 
-## 🤝 Contributing | 贡献
+## 🌟 使用场景
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+-   **微服务编排** - 微服务间的复杂工作流协调
+-   **数据管道** - ETL 数据处理流程
+-   **CI/CD 自动化** - 构建和部署工作流
+-   **业务流程自动化** - 企业业务流程数字化
+-   **API 工作流** - RESTful API 调用链编排
+-   **批处理作业** - 大规模数据批处理任务
 
-## 📄 License | 许可证
+## 🤝 贡献
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+欢迎提交 Issue 和 Pull Request！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解贡献指南。
 
-## 🌟 Use Cases | 使用场景
+## 📄 许可证
 
--   **Microservice orchestration** | 微服务编排
--   **Data pipeline processing** | 数据管道处理
--   **CI/CD workflow automation** | CI/CD 工作流自动化
--   **Distributed system coordination** | 分布式系统协调
--   **Business process automation** | 业务流程自动化
--   **ETL data transformation** | ETL 数据转换
+本项目采用 Apache License 2.0 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
 
 ---
 
-Made with ❤️ for the Rust community | 为 Rust 社区用 ❤️ 制作
+用 ❤️ 为 Rust 社区打造

@@ -1,9 +1,7 @@
 [workspace]
 members = [
     "flowbuilder-core",
-    "flowbuilder-macros",
     "flowbuilder-context",
-    "flowbuilder-logger",
     "flowbuilder-runtime",
     "flowbuilder-yaml",
     "flowbuilder",
@@ -26,3 +24,6 @@ tracing-subscriber = { version = "0.3" }
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+futures = "0.3.31"

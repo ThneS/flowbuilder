@@ -83,12 +83,6 @@ impl FlowBuilder {
                 } else {
                     let trace_id = guard.trace_id.clone();
                     drop(guard);
-                    #[cfg(feature = "logger")]
-                    tracing::info!(
-                        "[trace_id:{}] [step_if] condition not met, skipping step",
-                        trace_id
-                    );
-                    #[cfg(not(feature = "logger"))]
                     println!(
                         "[trace_id:{}] [step_if] condition not met, skipping step",
                         trace_id
@@ -101,7 +95,12 @@ impl FlowBuilder {
     }
 
     /// Adds a wait step that waits until a condition is met
-    pub fn wait_until<Cond>(mut self, cond: Cond, interval: Duration, max_retry: usize) -> Self
+    pub fn wait_until<Cond>(
+        mut self,
+        cond: Cond,
+        interval: Duration,
+        max_retry: usize,
+    ) -> Self
     where
         Cond: Fn(&FlowContext) -> bool + Send + Sync + 'static,
     {
@@ -111,10 +110,10 @@ impl FlowBuilder {
                     {
                         let guard = ctx.lock().await;
                         if cond(&guard) {
-                            #[cfg(feature = "logger")]
-                            tracing::info!("[wait_until] condition met on attempt {}", attempt + 1);
-                            #[cfg(not(feature = "logger"))]
-                            println!("[wait_until] condition met on attempt {}", attempt + 1);
+                            println!(
+                                "[wait_until] condition met on attempt {}",
+                                attempt + 1
+                            );
                             return Ok(());
                         }
                     }
@@ -149,7 +148,10 @@ impl FlowBuilder {
     }
 
     /// Builds and executes the flow with a custom context
-    pub async fn execute_with_context(self, context: FlowContext) -> Result<FlowContext> {
+    pub async fn execute_with_context(
+        self,
+        context: FlowContext,
+    ) -> Result<FlowContext> {
         self.build().execute_with_context(context).await
     }
 }
