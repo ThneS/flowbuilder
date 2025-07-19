@@ -91,15 +91,15 @@ impl YamlConfigParser {
             let action = &action_wrapper.action;
 
             // 为每个动作添加前缀
-            let prefix = format!("action_{}", index);
+            let prefix = format!("action_{index}");
 
             for (key, value) in &action.parameters {
                 parameters
-                    .insert(format!("{}_{}", prefix, key), value.value.clone());
+                    .insert(format!("{prefix}_{key}"), value.value.clone());
             }
 
             for (key, value) in &action.outputs {
-                outputs.insert(format!("{}_{}", prefix, key), value.clone());
+                outputs.insert(format!("{prefix}_{key}"), value.clone());
             }
         }
 

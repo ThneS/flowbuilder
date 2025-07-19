@@ -65,6 +65,12 @@ pub struct ExecutionStats {
     pub average_execution_time: Duration,
 }
 
+impl Default for EnhancedTaskExecutor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EnhancedTaskExecutor {
     /// 创建新的任务执行器
     pub fn new() -> Self {
@@ -190,7 +196,7 @@ impl EnhancedTaskExecutor {
             // 这里应该使用表达式评估器检查条件
             // 为了简化，这里假设条件总是满足
             if self.config.enable_detailed_logging {
-                println!("  检查阶段条件: {}", condition);
+                println!("  检查阶段条件: {condition}");
             }
         }
 
@@ -242,7 +248,7 @@ impl EnhancedTaskExecutor {
             PhaseExecutionMode::Conditional { ref condition } => {
                 // 检查条件
                 if self.config.enable_detailed_logging {
-                    println!("  检查条件: {}", condition);
+                    println!("  检查条件: {condition}");
                 }
 
                 // 简化的条件检查，实际应该使用表达式评估器
@@ -253,10 +259,8 @@ impl EnhancedTaskExecutor {
                         let node_result = self.execute_node(node, context.clone()).await?;
                         phase_result.node_results.push(node_result);
                     }
-                } else {
-                    if self.config.enable_detailed_logging {
-                        println!("  跳过阶段 {} (条件不满足)", phase.name);
-                    }
+                } else if self.config.enable_detailed_logging {
+                    println!("  跳过阶段 {} (条件不满足)", phase.name);
                 }
             }
         }
@@ -301,7 +305,7 @@ impl EnhancedTaskExecutor {
         // 检查节点条件
         if let Some(condition) = &node.condition {
             if config.enable_detailed_logging {
-                println!("      检查节点条件: {}", condition);
+                println!("      检查节点条件: {condition}");
             }
             // 简化的条件检查
             let condition_met = true;
@@ -426,7 +430,7 @@ impl EnhancedTaskExecutor {
         // 存储输出到上下文
         for (key, value) in &action_spec.outputs {
             let mut guard = context.lock().await;
-            guard.set_variable(key.clone(), format!("{:?}", value));
+            guard.set_variable(key.clone(), format!("{value:?}"));
         }
 
         Ok(())
@@ -438,12 +442,12 @@ impl EnhancedTaskExecutor {
 
         // 设置环境变量
         for (key, value) in &plan.env_vars {
-            guard.set_variable(format!("env.{}", key), format!("{:?}", value));
+            guard.set_variable(format!("env.{key}"), format!("{value:?}"));
         }
 
         // 设置流程变量
         for (key, value) in &plan.flow_vars {
-            guard.set_variable(format!("flow.{}", key), format!("{:?}", value));
+            guard.set_variable(format!("flow.{key}"), format!("{value:?}"));
         }
 
         Ok(())

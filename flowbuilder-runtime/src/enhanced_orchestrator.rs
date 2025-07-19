@@ -39,6 +39,12 @@ impl Default for OrchestratorConfig {
     }
 }
 
+impl Default for EnhancedFlowOrchestrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EnhancedFlowOrchestrator {
     /// 创建新的编排器
     pub fn new() -> Self {
@@ -195,7 +201,7 @@ impl EnhancedFlowOrchestrator {
             };
 
             let phase = ExecutionPhase {
-                id: format!("phase_{}", index),
+                id: format!("phase_{index}"),
                 name: format!("执行阶段 {}", index + 1),
                 execution_mode,
                 nodes: layer,

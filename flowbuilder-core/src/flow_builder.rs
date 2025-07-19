@@ -84,8 +84,7 @@ impl FlowBuilder {
                     let trace_id = guard.trace_id.clone();
                     drop(guard);
                     println!(
-                        "[trace_id:{}] [step_if] condition not met, skipping step",
-                        trace_id
+                        "[trace_id:{trace_id}] [step_if] condition not met, skipping step"
                     );
                     Ok(())
                 }

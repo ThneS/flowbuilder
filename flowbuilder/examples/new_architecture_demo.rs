@@ -233,7 +233,7 @@ workflow:
 
     // 显示一些变量
     for (key, value) in context_guard.variables.iter().take(5) {
-        println!("    {}: {}", key, value);
+        println!("    {key}: {value}");
     }
 
     drop(context_guard);
