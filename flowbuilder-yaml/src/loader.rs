@@ -119,9 +119,7 @@ impl WorkflowLoader {
     }
 
     /// 快速执行工作流文件（使用 runtime 功能）
-    pub async fn execute_workflow_file<P: AsRef<Path>>(
-        path: P,
-    ) -> Result<()> {
+    pub async fn execute_workflow_file<P: AsRef<Path>>(path: P) -> Result<()> {
         let config = Self::from_yaml_file(path)?;
         Self::validate(&config)?;
 

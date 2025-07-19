@@ -2,12 +2,12 @@
 //!
 //! 基于执行计划的任务执行器，负责执行具体的任务
 
-use flowbuilder_core::{
-    ExecutionPlan, ExecutionPhase, ExecutionNode, PhaseExecutionMode,
-    Executor, ExecutorStatus, ActionSpec, RetryStrategy,
-};
-use flowbuilder_context::SharedContext;
 use anyhow::Result;
+use flowbuilder_context::SharedContext;
+use flowbuilder_core::{
+    ActionSpec, ExecutionNode, ExecutionPhase, ExecutionPlan, Executor,
+    ExecutorStatus, PhaseExecutionMode, RetryStrategy,
+};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
@@ -128,27 +128,33 @@ impl EnhancedTaskExecutor {
         // 按阶段执行
         for (index, phase) in plan.phases.iter().enumerate() {
             if self.config.enable_detailed_logging {
-                println!("执行阶段 {}: {} ({:?})", index + 1, phase.name, phase.execution_mode);
+                println!(
+                    "执行阶段 {}: {} ({:?})",
+                    index + 1,
+                    phase.name,
+                    phase.execution_mode
+                );
             }
 
             let phase_start = Instant::now();
-            let phase_result = match self.execute_phase(phase, context.clone()).await {
-                Ok(r) => r,
-                Err(e) => {
-                    result.success = false;
-                    result.error_message = Some(e.to_string());
-                    PhaseResult {
-                        phase_id: phase.id.clone(),
-                        phase_name: phase.name.clone(),
-                        start_time: phase_start,
-                        end_time: Some(Instant::now()),
-                        duration: phase_start.elapsed(),
-                        success: false,
-                        error_message: Some(e.to_string()),
-                        node_results: Vec::new(),
+            let phase_result =
+                match self.execute_phase(phase, context.clone()).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        result.success = false;
+                        result.error_message = Some(e.to_string());
+                        PhaseResult {
+                            phase_id: phase.id.clone(),
+                            phase_name: phase.name.clone(),
+                            start_time: phase_start,
+                            end_time: Some(Instant::now()),
+                            duration: phase_start.elapsed(),
+                            success: false,
+                            error_message: Some(e.to_string()),
+                            node_results: Vec::new(),
+                        }
                     }
-                }
-            };
+                };
 
             result.phase_results.push(phase_result);
 
@@ -203,7 +209,8 @@ impl EnhancedTaskExecutor {
         match phase.execution_mode {
             PhaseExecutionMode::Sequential => {
                 for node in &phase.nodes {
-                    let node_result = self.execute_node(node, context.clone()).await?;
+                    let node_result =
+                        self.execute_node(node, context.clone()).await?;
                     phase_result.node_results.push(node_result);
                 }
             }
@@ -218,7 +225,12 @@ impl EnhancedTaskExecutor {
 
                     let handle = tokio::spawn(async move {
                         let _permit = semaphore.acquire().await.unwrap();
-                        Self::execute_node_static(&node_clone, context_clone, &config).await
+                        Self::execute_node_static(
+                            &node_clone,
+                            context_clone,
+                            &config,
+                        )
+                        .await
                     });
 
                     handles.push(handle);
@@ -227,16 +239,17 @@ impl EnhancedTaskExecutor {
                 // 等待所有任务完成
                 for handle in handles {
                     match handle.await {
-                        Ok(node_result) => {
-                            match node_result {
-                                Ok(result) => phase_result.node_results.push(result),
-                                Err(e) => {
-                                    phase_result.success = false;
-                                    phase_result.error_message = Some(e.to_string());
-                                    return Err(e);
-                                }
+                        Ok(node_result) => match node_result {
+                            Ok(result) => {
+                                phase_result.node_results.push(result)
                             }
-                        }
+                            Err(e) => {
+                                phase_result.success = false;
+                                phase_result.error_message =
+                                    Some(e.to_string());
+                                return Err(e);
+                            }
+                        },
                         Err(e) => {
                             phase_result.success = false;
                             phase_result.error_message = Some(e.to_string());
@@ -256,7 +269,8 @@ impl EnhancedTaskExecutor {
 
                 if condition_met {
                     for node in &phase.nodes {
-                        let node_result = self.execute_node(node, context.clone()).await?;
+                        let node_result =
+                            self.execute_node(node, context.clone()).await?;
                         phase_result.node_results.push(node_result);
                     }
                 } else if self.config.enable_detailed_logging {
@@ -320,11 +334,16 @@ impl EnhancedTaskExecutor {
         }
 
         // 执行重试逻辑
-        let max_retries = node.retry_config.as_ref().map(|c| c.max_retries).unwrap_or(0);
+        let max_retries = node
+            .retry_config
+            .as_ref()
+            .map(|c| c.max_retries)
+            .unwrap_or(0);
         let mut retries = 0;
 
         loop {
-            let execute_result = Self::execute_node_action(node, context.clone(), config).await;
+            let execute_result =
+                Self::execute_node_action(node, context.clone(), config).await;
 
             match execute_result {
                 Ok(()) => {
@@ -337,21 +356,28 @@ impl EnhancedTaskExecutor {
                         result.retry_count = retries;
 
                         if config.enable_detailed_logging {
-                            println!("      重试节点 {} ({}/{})", node.name, retries, max_retries);
+                            println!(
+                                "      重试节点 {} ({}/{})",
+                                node.name, retries, max_retries
+                            );
                         }
 
                         if let Some(retry_config) = &node.retry_config {
                             let delay = match retry_config.strategy {
                                 RetryStrategy::Fixed => retry_config.delay,
                                 RetryStrategy::Exponential { multiplier } => {
-                                    (retry_config.delay as f64 * multiplier.powi(retries as i32)) as u64
+                                    (retry_config.delay as f64
+                                        * multiplier.powi(retries as i32))
+                                        as u64
                                 }
                                 RetryStrategy::Linear { increment } => {
-                                    retry_config.delay + (increment * retries as u64)
+                                    retry_config.delay
+                                        + (increment * retries as u64)
                                 }
                             };
 
-                            tokio::time::sleep(Duration::from_millis(delay)).await;
+                            tokio::time::sleep(Duration::from_millis(delay))
+                                .await;
                         }
                         continue;
                     } else {
@@ -378,7 +404,8 @@ impl EnhancedTaskExecutor {
         let action_spec = &node.action_spec;
 
         // 设置超时
-        let timeout_duration = node.timeout_config
+        let timeout_duration = node
+            .timeout_config
             .as_ref()
             .map(|c| Duration::from_millis(c.duration))
             .unwrap_or_else(|| Duration::from_millis(config.default_timeout));
@@ -423,7 +450,10 @@ impl EnhancedTaskExecutor {
                 println!("        执行WASM动作");
             }
             _ => {
-                return Err(anyhow::anyhow!("不支持的动作类型: {}", action_spec.action_type));
+                return Err(anyhow::anyhow!(
+                    "不支持的动作类型: {}",
+                    action_spec.action_type
+                ));
             }
         }
 
@@ -437,7 +467,11 @@ impl EnhancedTaskExecutor {
     }
 
     /// 设置上下文
-    async fn setup_context(&self, plan: &ExecutionPlan, context: SharedContext) -> Result<()> {
+    async fn setup_context(
+        &self,
+        plan: &ExecutionPlan,
+        context: SharedContext,
+    ) -> Result<()> {
         let mut guard = context.lock().await;
 
         // 设置环境变量
@@ -470,7 +504,8 @@ impl EnhancedTaskExecutor {
 
         if self.stats.total_tasks > 0 {
             self.stats.average_execution_time = Duration::from_nanos(
-                self.stats.total_execution_time.as_nanos() as u64 / self.stats.total_tasks as u64
+                self.stats.total_execution_time.as_nanos() as u64
+                    / self.stats.total_tasks as u64,
             );
         }
     }
@@ -486,7 +521,10 @@ impl Executor for EnhancedTaskExecutor {
     type Output = ExecutionResult;
     type Error = anyhow::Error;
 
-    async fn execute(&mut self, input: Self::Input) -> Result<Self::Output, Self::Error> {
+    async fn execute(
+        &mut self,
+        input: Self::Input,
+    ) -> Result<Self::Output, Self::Error> {
         let (plan, context) = input;
         self.execute_plan(plan, context).await
     }
@@ -565,7 +603,7 @@ pub struct NodeResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use flowbuilder_core::{ExecutionNode, ActionSpec};
+    use flowbuilder_core::{ActionSpec, ExecutionNode};
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -578,7 +616,7 @@ mod tests {
     async fn test_node_execution() {
         let config = ExecutorConfig::default();
         let context = Arc::new(tokio::sync::Mutex::new(
-            flowbuilder_context::FlowContext::default()
+            flowbuilder_context::FlowContext::default(),
         ));
 
         let node = ExecutionNode::new(
@@ -591,7 +629,9 @@ mod tests {
             },
         );
 
-        let result = EnhancedTaskExecutor::execute_node_static(&node, context, &config).await;
+        let result =
+            EnhancedTaskExecutor::execute_node_static(&node, context, &config)
+                .await;
         assert!(result.is_ok());
 
         let node_result = result.unwrap();

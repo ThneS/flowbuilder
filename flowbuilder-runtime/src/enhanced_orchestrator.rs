@@ -94,7 +94,8 @@ impl EnhancedFlowOrchestrator {
         }
 
         // 6. 验证计划
-        plan.validate().map_err(|e| anyhow::anyhow!("执行计划验证失败: {}", e))?;
+        plan.validate()
+            .map_err(|e| anyhow::anyhow!("执行计划验证失败: {}", e))?;
 
         Ok(plan)
     }
