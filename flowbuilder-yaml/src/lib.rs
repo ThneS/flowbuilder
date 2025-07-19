@@ -20,9 +20,11 @@ pub use parser::*;
 /// 预导入模块
 pub mod prelude {
     pub use crate::{
-        DynamicFlowExecutor, ExpressionEvaluator, WorkflowConfig, WorkflowInfo,
-        WorkflowLoader, YamlConfigParser,
+        DynamicFlowExecutor, WorkflowConfig, WorkflowInfo, WorkflowLoader,
+        YamlConfigParser,
     };
+    // 重命名 ExpressionEvaluator 以避免与 core 包冲突
+    pub use crate::ExpressionEvaluator as YamlExpressionEvaluator;
     pub use flowbuilder_core::prelude::*;
     pub use flowbuilder_runtime::{
         EnhancedFlowOrchestrator, EnhancedTaskExecutor, ExecutionResult,

@@ -148,16 +148,18 @@ pub trait Executor {
     type Error;
 
     /// 执行输入并返回结果
-    async fn execute(
+    fn execute(
         &mut self,
         input: Self::Input,
-    ) -> Result<Self::Output, Self::Error>;
+    ) -> impl std::future::Future<Output = Result<Self::Output, Self::Error>> + Send;
 
     /// 获取执行器状态
     fn status(&self) -> ExecutorStatus;
 
     /// 停止执行器
-    async fn stop(&mut self) -> Result<(), Self::Error>;
+    fn stop(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<(), Self::Error>> + Send;
 }
 
 /// 执行器状态
