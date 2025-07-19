@@ -212,6 +212,12 @@ workflow:
         }
     }
 
+    // 输出节点统计信息
+    println!("\n  节点执行统计:");
+    println!("    总节点数: {total_nodes}");
+    println!("    成功节点数: {successful_nodes}");
+    println!("    失败节点数: {failed_nodes}");
+
     // 10. 获取执行统计
     println!("\n步骤9: 执行统计");
     let stats = executor.get_stats();
