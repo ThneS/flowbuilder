@@ -5,15 +5,18 @@ edition = "2021"
 description = "An async flow orchestration framework with conditional execution and context sharing."
 authors = ["Thne"]
 keywords = ["flow", "workflow", "async", "rust"]
+categories = ["asynchronous", "development-tools"]
 readme = "../README.md"
 license = "Apache-2.0"
 repository = "https://github.com/ThneS/flowbuilder.git"
+homepage = "https://github.com/ThneS/flowbuilder"
+documentation = "https://docs.rs/flowbuilder"
 
 [dependencies]
-flowbuilder-core = { path = "../flowbuilder-core" }
-flowbuilder-context = { path = "../flowbuilder-context" }
-flowbuilder-runtime = { path = "../flowbuilder-runtime", optional = true }
-flowbuilder-yaml = { path = "../flowbuilder-yaml", optional = true }
+flowbuilder-core = "0.1.0"
+flowbuilder-context = "0.1.0"
+flowbuilder-runtime = { version = "0.1.0", optional = true }
+flowbuilder-yaml = { version = "0.1.0", optional = true }
 
 # Re-export workspace dependencies
 anyhow = { workspace = true }
