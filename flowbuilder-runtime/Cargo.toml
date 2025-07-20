@@ -1,14 +1,19 @@
 [package]
 name = "flowbuilder-runtime"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2021"
 description = "Advanced runtime features for FlowBuilder"
 authors = ["Thne"]
 license = "Apache-2.0"
+keywords = ["flow", "runtime", "async", "rust"]
+categories = ["asynchronous", "development-tools"]
+repository = "https://github.com/ThneS/flowbuilder.git"
+homepage = "https://github.com/ThneS/flowbuilder"
+documentation = "https://docs.rs/flowbuilder-runtime"
 
 [dependencies]
-flowbuilder-core = { path = "../flowbuilder-core" }
-flowbuilder-context = { path = "../flowbuilder-context" }
+flowbuilder-core = "0.1.0"
+flowbuilder-context = "0.1.0"
 anyhow = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
