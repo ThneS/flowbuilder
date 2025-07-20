@@ -1,6 +1,6 @@
 [package]
 name = "flowbuilder"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2021"
 description = "An async flow orchestration framework with conditional execution and context sharing."
 authors = ["Thne"]

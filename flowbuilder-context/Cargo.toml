@@ -1,10 +1,15 @@
 [package]
 name = "flowbuilder-context"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2021"
 description = "Context management for FlowBuilder"
 authors = ["Thne"]
 license = "Apache-2.0"
+keywords = ["flow", "context", "async", "rust"]
+categories = ["asynchronous", "data-structures"]
+repository = "https://github.com/ThneS/flowbuilder.git"
+homepage = "https://github.com/ThneS/flowbuilder"
+documentation = "https://docs.rs/flowbuilder-context"
 
 [dependencies]
 uuid = { workspace = true }
