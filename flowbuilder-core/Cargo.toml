@@ -1,13 +1,18 @@
 [package]
 name = "flowbuilder-core"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2021"
 description = "Core flow building functionality for FlowBuilder"
 authors = ["Thne"]
 license = "Apache-2.0"
+keywords = ["flow", "workflow", "async", "rust"]
+categories = ["asynchronous", "development-tools"]
+repository = "https://github.com/ThneS/flowbuilder.git"
+homepage = "https://github.com/ThneS/flowbuilder"
+documentation = "https://docs.rs/flowbuilder-core"
 
 [dependencies]
-flowbuilder-context = { path = "../flowbuilder-context" }
+flowbuilder-context = "0.1.0"
 anyhow = { workspace = true }
 tokio = { workspace = true }
 serde = { version = "1.0", features = ["derive"] }
