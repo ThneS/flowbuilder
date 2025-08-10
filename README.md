@@ -58,8 +58,9 @@ workflow:
 
 本项目通过 feature 组合实现按需裁剪（减少编译/体积）。当前层次关系：
 
-- 顶层特性：`core` / `runtime` / `yaml`
+- 顶层特性：`core` / `runtime` / `yaml` / 组合：`yaml-runtime`
 - Runtime 子特性：`parallel` / `retry` / `perf-metrics` / `detailed-logging`
+- `yaml-runtime` = `yaml + runtime + flowbuilder-yaml/runtime`（确保 YAML 动态执行器具备执行能力与增强编排器）
 - 启用 `runtime` 时会自动拉入 runtime crate（其默认启用 `parallel` `retry` `perf-metrics`）。
 - 顶层 crate 的子特性只是透传到 runtime；目前还不支持单独关闭 runtime crate 的默认子特性（后续可能提供 `runtime-base` + 显式子特性方式）。
 
@@ -92,10 +93,19 @@ flowbuilder = { version = "0.1.1", default-features = false, features = ["yaml"]
 ### 4. YAML + 执行 (推荐基础)
 
 ```toml
+# 方式A：显式列出
 flowbuilder = { version = "0.1.1", features = ["yaml","runtime"] }
+# 方式B：使用组合特性（简化推荐）
+flowbuilder = { version = "0.1.1", features = ["yaml-runtime"] }
 ```
 
-等价于默认启用（默认特性即 `core,yaml,runtime`）。
+等价于默认启用（当前默认特性为 `core,yaml-runtime`）。
+
+组合特性优势：
+
+-   保证同时开启 facade 对 YAML + Runtime 的依赖链
+-   避免忘记启用 `flowbuilder-yaml` 的 runtime 子特性导致执行方法缺失
+-   减少依赖声明长度，提升可读性
 
 ### 5. 启用性能统计 (perf-metrics)
 
@@ -119,13 +129,14 @@ flowbuilder = { version = "0.1.1", features = ["runtime","yaml","detailed-loggin
 
 ### 7. 组合示例对照
 
-| 场景        | 依赖声明                      | 可用能力           |
-| ----------- | ----------------------------- | ------------------ |
-| 仅构建      | core                          | 构建/执行链式步骤  |
-| 执行(最小)  | runtime (默认子特性)          | 并行+重试+统计     |
-| YAML 解析   | yaml                          | 配置解析/验证/预览 |
-| YAML + 执行 | yaml,runtime                  | 解析+计划+执行     |
-| 全功能调试  | yaml,runtime,detailed-logging | + 调试日志         |
+| 场景        | 依赖声明                                   | 可用能力           |
+| ----------- | ------------------------------------------ | ------------------ |
+| 仅构建      | core                                       | 构建/执行链式步骤  |
+| 执行(最小)  | runtime (默认子特性)                       | 并行+重试+统计     |
+| YAML 解析   | yaml                                       | 配置解析/验证/预览 |
+| YAML + 执行 | yaml,runtime 或 yaml-runtime               | 解析+计划+执行     |
+| 全功能调试  | yaml-runtime,detailed-logging              | + 调试日志         |
+| 指标 + 调试 | yaml-runtime,perf-metrics,detailed-logging | + 性能指标 + 日志  |
 
 ### 8. 未来规划（特性粒度）
 
