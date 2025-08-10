@@ -1,70 +1,59 @@
 # FlowBuilder
 
-> 🚀 **企业级异步工作流引擎** - 基于 Rust 的高性能工作流引擎，支持 YAML 配置驱动、分层架构设计
+> 🚀 基于 Rust 的高性能异步工作流引擎：YAML 驱动 + 分层架构 + 可组合特性
 
 [![Crates.io](https://img.shields.io/crates/v/flowbuilder.svg)](https://crates.io/crates/flowbuilder)
 [![Documentation](https://docs.rs/flowbuilder/badge.svg)](https://docs.rs/flowbuilder)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-## ✨ 核心特性
+## ✨ 特性概览
 
-### �️ **分层架构设计**
-
--   ✅ **配置解析器** - YAML 配置解析和验证
--   ✅ **流程编排器** - 智能执行计划生成和优化
--   ✅ **任务执行器** - 高性能任务执行和控制
--   ✅ **统一接口** - 清晰的分层抽象和标准接口
-
-### ⚡ **高性能执行**
-
--   ✅ **并行执行** - 自动分析依赖，最大化并行度
--   ✅ **异步原生** - 基于 Tokio 的零成本异步抽象
--   ✅ **资源控制** - 可配置的并发限制和背压控制
--   ✅ **执行优化** - 智能执行计划优化
-
-### � **YAML 配置驱动**
-
--   ✅ **声明式配置** - 完整的 YAML 工作流定义
--   ✅ **配置验证** - 自动配置完整性检查
--   ✅ **环境变量** - 支持环境变量和流程变量
--   ✅ **热重载** - 支持配置动态加载
-
-### 🛡️ **企业级可靠性**
-
--   ✅ **错误恢复** - 多层次错误处理和恢复机制
--   ✅ **重试策略** - 可配置的智能重试
--   ✅ **超时控制** - 任务级和全局超时管理
--   ✅ **可观测性** - 完整的执行追踪和指标
+-   分层架构：解析（Parser）→ 编排（Orchestrator）→ 执行（Executor）
+-   并行执行：自动推断阶段并行度，信号量限流
+-   条件 / 复杂度分析：执行前预估复杂度与最大并行度
+-   重试 + 超时：节点级配置
+-   性能指标：任务/阶段耗时与聚合统计（可选）
+-   详细日志：调试期开启（可选）
+-   YAML 驱动：声明式工作流 + 验证 + 预览计划
+-   纯构建 DSL：无 YAML 场景可最小化依赖
 
 ## 🚀 快速开始
 
-### 安装
+### 安装 (默认已启用 core + yaml-runtime)
 
-flowbuilder = { version = "0.1.0", features = ["yaml", "runtime"] }
-tokio = { version = "1.0", features = ["full"] }
-
-````
+```toml
+[dependencies]
+flowbuilder = { version = "0.1.1" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+```
 
 ### YAML 配置示例
 
-```yaml
+````yaml
 workflow:
     version: "1.0"
     env:
         ENVIRONMENT: "production"
         LOG_LEVEL: "info"
 
-## 🔌 特性使用指南 (Feature Usage)
+## 🔌 特性指南
 
-本项目通过 feature 组合实现按需裁剪（减少编译/体积）。当前层次关系：
+Feature 体系（可组合）：
 
-- 顶层特性：`core` / `runtime` / `yaml` / 组合：`yaml-runtime`
-- Runtime 子特性：`parallel` / `retry` / `perf-metrics` / `detailed-logging`
-- `yaml-runtime` = `yaml + runtime + flowbuilder-yaml/runtime`（确保 YAML 动态执行器具备执行能力与增强编排器）
-- 启用 `runtime` 时会自动拉入 runtime crate（其默认启用 `parallel` `retry` `perf-metrics`）。
-- 顶层 crate 的子特性只是透传到 runtime；目前还不支持单独关闭 runtime crate 的默认子特性（后续可能提供 `runtime-base` + 显式子特性方式）。
+| 类别 | 名称 | 说明 |
+| ---- | ---- | ---- |
+| 基础 | core | 构建器 + 上下文 DSL |
+| 解析 | yaml | YAML/JSON 解析与验证 |
+| 执行 | runtime | 编排 + 高级执行（默认含 parallel/retry/perf-metrics） |
+| 组合 | yaml-runtime | = yaml + runtime + 启用 yaml 中的 runtime 子特性 |
+| 子特性 | parallel | 阶段/节点并行 |
+| 子特性 | retry | 节点重试策略 |
+| 子特性 | perf-metrics | 执行统计/耗时（runtime 默认启用） |
+| 子特性 | detailed-logging | 详细阶段/节点调试日志 |
 
-### 1. 最小核心 (仅构建器)
+默认启用：`core + yaml-runtime`。
+
+### 1. 最小核心
 
 ```toml
 [dependencies]
@@ -74,7 +63,7 @@ tokio = { version = "1", features = ["rt","macros"] }
 
 可用：`FlowBuilder` / `SharedContext`；不可用：动态 YAML / 增强执行器 / 复杂度分析 / 性能统计。
 
-### 2. 最小 Runtime (不含 YAML)
+### 2. 最小 Runtime（无 YAML）
 
 ```toml
 flowbuilder = { version = "0.1.1", default-features = false, features = ["runtime"] }
@@ -82,7 +71,7 @@ flowbuilder = { version = "0.1.1", default-features = false, features = ["runtim
 
 包含 runtime 默认子特性：并行 + 重试 + 性能指标。
 
-### 3. YAML 解析 (不执行计划)
+### 3. 仅 YAML 解析
 
 ```toml
 flowbuilder = { version = "0.1.1", default-features = false, features = ["yaml"] }
@@ -90,7 +79,7 @@ flowbuilder = { version = "0.1.1", default-features = false, features = ["yaml"]
 
 仅使用配置解析与验证，可用于离线分析或静态检查。
 
-### 4. YAML + 执行 (推荐基础)
+### 4. YAML + 执行（推荐）
 
 ```toml
 # 方式A：显式列出
@@ -107,7 +96,7 @@ flowbuilder = { version = "0.1.1", features = ["yaml-runtime"] }
 -   避免忘记启用 `flowbuilder-yaml` 的 runtime 子特性导致执行方法缺失
 -   减少依赖声明长度，提升可读性
 
-### 5. 启用性能统计 (perf-metrics)
+### 5. 性能统计 (perf-metrics)
 
 `runtime` 默认已经包含 `perf-metrics`，只需在代码中在启用特性时读取统计：
 
@@ -127,24 +116,24 @@ flowbuilder = { version = "0.1.1", features = ["runtime","yaml","detailed-loggin
 
 该特性会在执行过程中输出更细粒度的阶段/节点日志，只建议调试时使用。
 
-### 7. 组合示例对照
+### 7. 组合速览
 
-| 场景        | 依赖声明                                   | 可用能力           |
-| ----------- | ------------------------------------------ | ------------------ |
-| 仅构建      | core                                       | 构建/执行链式步骤  |
-| 执行(最小)  | runtime (默认子特性)                       | 并行+重试+统计     |
-| YAML 解析   | yaml                                       | 配置解析/验证/预览 |
-| YAML + 执行 | yaml,runtime 或 yaml-runtime               | 解析+计划+执行     |
-| 全功能调试  | yaml-runtime,detailed-logging              | + 调试日志         |
-| 指标 + 调试 | yaml-runtime,perf-metrics,detailed-logging | + 性能指标 + 日志  |
+| 场景       | features                         | 说明                             |
+| ---------- | -------------------------------- | -------------------------------- |
+| 仅构建     | core                             | DSL 构建，无编排/并行            |
+| 最小执行   | runtime                          | 并行 + 重试 + 指标（默认子特性） |
+| 仅解析     | yaml                             | 解析 / 验证 / 计划预估（无执行） |
+| YAML 执行  | yaml-runtime                     | 解析 + 编排 + 执行               |
+| 调试       | yaml-runtime,detailed-logging    | 加详细日志                       |
+| 指标可观测 | yaml-runtime (已含 perf-metrics) | 执行统计                         |
 
-### 8. 未来规划（特性粒度）
+### 8. 规划
 
--   提供 `runtime-base`（关闭并行/重试/统计默认启用）
--   独立 `metrics` 输出结构向 facade 暴露并稳定 API
--   分布式执行拓展特性：`distributed` / `sharding` (规划中)
+-   `runtime-base`：拆分默认子特性
+-   分布式/分片：`distributed` / `sharding`
+-   更细粒度指标导出
 
-### 9. 简单 YAML + Runtime 代码片段
+### 9. 快速代码示例
 
 ```rust
 use flowbuilder::prelude::*;            // facade 导入
@@ -171,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-> 提示：关闭 `detailed-logging` 可减少 IO；当前无法单独关闭并行/重试/统计（因 runtime crate 默认特性），计划在后续版本引入更细粒度控制。
+> 提示：生产环境建议关闭 `detailed-logging`；若需最小二进制请选择 `default-features = false`。
 
     vars:
         max_retries: 3
@@ -204,36 +193,15 @@ async fn main() -> anyhow::Result<()> {
 
 ````
 
-### 代码示例
+### 更多示例
 
-```rust
-use flowbuilder_yaml::prelude::*;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 从 YAML 配置创建执行器
-    let yaml_content = std::fs::read_to_string("workflow.yaml")?;
-    let mut executor = DynamicFlowExecutor::from_yaml(&yaml_content)?;
-
-    // 创建执行上下文
-    let context = std::sync::Arc::new(tokio::sync::Mutex::new(
-        flowbuilder_context::FlowContext::default()
-    ));
-
-    // 执行工作流
-    let result = executor.execute(context).await?;
-
-    println!("工作流执行完成: {}", result.success);
-    println!("总耗时: {:?}", result.total_duration);
-    println!("执行节点数: {}", result.nodes_executed);
-
-    Ok(())
-}
-````
+查看 `examples/new_architecture_demo.rs` 或 `docs/quick-start-guide.md`。
 
 ## 🏗️ 架构设计
 
-FlowBuilder 采用分层架构设计，确保高性能、可扩展性和易维护性：
+## 🏗️ 架构
+
+分层确保职责清晰 & 易扩展：
 
 ```
 ┌─────────────────────┐
@@ -262,29 +230,17 @@ FlowBuilder 采用分层架构设计，确保高性能、可扩展性和易维�
 └─────────────────────┘
 ```
 
-### 核心组件
+核心组件：配置解析器 / 流程编排器 / 任务执行器 / 上下文状态管理
 
--   **配置解析器**: 负责 YAML 配置的解析、验证和结构化
--   **流程编排器**: 创建优化的执行计划，处理依赖关系
--   **任务执行器**: 高性能的任务执行，支持并行、重试、超时等
+## 📊 性能
 
-## 📊 性能特点
-
--   **零成本抽象** - 编译时优化，运行时高效
--   **异步优先设计** - 原生 Tokio 集成，高并发支持
--   **内存高效** - 最小化内存分配和复制
--   **智能并行** - 自动分析依赖，最大化并行执行机会
+零成本抽象 / 异步优先 / 并行调度 / 指标可观测 / 内存友好
 
 ## 🔧 配置驱动
 
-### 支持的配置特性
+### 支持的配置能力
 
--   **任务定义** - 声明式任务和动作配置
--   **依赖管理** - 自动处理任务间依赖关系
--   **重试策略** - 可配置的重试次数和延迟
--   **超时控制** - 任务级和全局超时设置
--   **环境变量** - 支持环境变量和流程变量
--   **条件执行** - 基于条件的任务执行控制
+任务定义 / 依赖管理 / 条件执行 / 重试 / 超时 / 变量注入
     guard.set_variable("important_data".to_string(), "original".to_string());
     Ok(())
     })
@@ -325,7 +281,7 @@ FlowBuilder::new()
 // Output includes trace ID in all logs:
 // [trace_id:user-request-12345] [step:service_a] starting...
 // [trace_id:user-request-12345] [step:service_a] completed successfully in 1.2ms
-````
+```
 
 ### 5. **Error Handling Strategies | 错误处理策略**
 
@@ -427,17 +383,10 @@ Run specific test suites:
 
 查看 `examples/new_architecture_demo.rs` 获取完整的使用示例。
 
-## 🧪 测试
-
-运行所有测试：
+## 🧪 测试 & 示例
 
 ```bash
 cargo test
-```
-
-运行示例：
-
-```bash
 cargo run --example new_architecture_demo
 ```
 
@@ -462,32 +411,15 @@ cargo run --example new_architecture_demo
 
 用 ❤️ 为 Rust 社区打造
 
-## 🔌 特性矩阵 (Features)
+## 🔌 Import 与最小化
 
-| Feature          | 默认             | 说明                                      |
-| ---------------- | ---------------- | ----------------------------------------- |
-| core             | ✔                | 核心构建器与执行抽象                      |
-| runtime          | ✔                | 高级执行器/编排器聚合                     |
-| yaml             | ✔                | YAML/JSON 动态加载                        |
-| parallel         | ✔ (runtime 默认) | 启用阶段/节点并行与信号量控制             |
-| retry            | ✔ (runtime 默认) | 节点级重试策略 (Fixed/Exponential/Linear) |
-| perf-metrics     | ✔ (runtime 默认) | 执行统计与平均耗时采集                    |
-| detailed-logging | ✘                | 详细阶段/节点调试日志                     |
-
-精简体积：关闭 `detailed-logging perf-metrics retry parallel` 以获得最小执行核心。
-
-示例：
+示例（自定义精简）：
 
 ```toml
-[dependencies]
-flowbuilder = { version = "0.1.0", default-features = false, features = ["core", "runtime", "parallel"] }
+flowbuilder = { version = "0.1.1", default-features = false, features = ["core", "runtime", "parallel"] }
 ```
 
-### 组合使用示例（Imports & Features）
-
-> 注意：`yaml` crate 不再隐式 re-export runtime 类型；需要同时使用时请显式启用 `runtime`。
-
-#### 1. 仅核心（最小体积）
+#### 仅核心
 
 ```toml
 [dependencies]
@@ -498,7 +430,7 @@ flowbuilder = { version = "0.1.0", default-features = false, features = ["core"]
 use flowbuilder::prelude::*; // 仅包含 FlowBuilder / 基础执行抽象
 ```
 
-#### 2. 核心 + 高级执行（无 YAML）
+#### 核心 + 执行（无 YAML）
 
 ```toml
 [dependencies]
@@ -515,7 +447,7 @@ use flowbuilder::runtime::prelude::*; // EnhancedTaskExecutor / EnhancedFlowOrch
 features = ["core", "runtime", "parallel", "retry"]  # 不包含 perf-metrics / detailed-logging
 ```
 
-#### 3. YAML 动态加载（含 runtime）
+#### YAML 动态执行
 
 ```toml
 [dependencies]
@@ -527,25 +459,25 @@ use flowbuilder::yaml::prelude::*;      // 动态加载器 / DynamicFlowExecutor
 use flowbuilder::runtime::prelude::*;   // 高级执行器 (需要 runtime)
 ```
 
-#### 4. 极致精简（仅构建 DSL，不执行高级调度）
+#### 极致精简
 
 ```toml
 flowbuilder = { version = "0.1.0", default-features = false, features = ["core"] }
 ```
 
-#### 5. 全特性（探索/调试阶段）
+#### 全特性
 
 ```toml
 flowbuilder = { version = "0.1.0", features = ["yaml", "runtime", "parallel", "retry", "perf-metrics", "detailed-logging"] }
 ```
 
-### Import 策略建议
+### Import 建议
 
 | 需求场景        | 推荐 imports                                                | 说明                  |
 | --------------- | ----------------------------------------------------------- | --------------------- |
 | 纯构建/串行流程 | `use flowbuilder::prelude::*;`                              | 不启用 runtime 子特性 |
 | 高性能执行      | `use flowbuilder::runtime::prelude::*;`                     | 并行 / 重试 / 指标    |
 | YAML 驱动       | `use flowbuilder::yaml::prelude::*;` + 视需要再引入 runtime | 分离解析与执行        |
-| 最小二进制      | 仅 core，无 runtime/yaml                                    | 减少依赖与代码大小    |
+| 最小二进制      | 仅 core                                                     | 减少依赖与代码大小    |
 
 > FAQ: 为什么不在 YAML prelude 里自动带 runtime? —— 避免无意拉入并行/重试/指标等额外逻辑，给予使用者显式控制权。
