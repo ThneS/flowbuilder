@@ -1,6 +1,6 @@
 [package]
 name = "flowbuilder-context"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Context management for FlowBuilder"
 authors = ["Thne"]

@@ -54,7 +54,15 @@ pub mod prelude {
 
     #[cfg(feature = "runtime")]
     #[cfg_attr(docsrs, doc(cfg(feature = "runtime")))]
-    pub use flowbuilder_runtime::*;
+    pub use flowbuilder_runtime::{
+        EnhancedFlowOrchestrator, EnhancedOrchestratorConfig,
+        EnhancedTaskExecutor, ExecutionComplexity, ExecutionResult,
+        ExecutorConfig, NodeResult, PhaseResult,
+    };
+
+    // 细粒度子特性透传（仅当 runtime 启用且对应子特性启用）
+    #[cfg(all(feature = "runtime", feature = "perf-metrics"))]
+    pub use flowbuilder_runtime::ExecutionStats;
 
     #[cfg(feature = "yaml")]
     #[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]

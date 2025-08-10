@@ -1,6 +1,6 @@
 [package]
 name = "flowbuilder-runtime"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Advanced runtime features for FlowBuilder"
 authors = ["Thne"]
@@ -12,8 +12,8 @@ homepage = "https://github.com/ThneS/flowbuilder"
 documentation = "https://docs.rs/flowbuilder-runtime"
 
 [dependencies]
-flowbuilder-core = "0.1.0"
-flowbuilder-context = "0.1.0"
+flowbuilder-core = { version = "0.1.1", path = "../flowbuilder-core" }
+flowbuilder-context = { version = "0.1.1", path = "../flowbuilder-context" }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 uuid = { workspace = true }
@@ -21,3 +21,22 @@ futures = "0.3.31"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 tracing = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion = "0.5"
+tokio = { workspace = true, features = ["rt", "macros", "rt-multi-thread", "time"] }
+
+[[bench]]
+name = "executor_features"
+harness = false
+
+[features]
+default = ["parallel", "retry", "perf-metrics"]
+# 控制是否启用并行执行（关闭后阶段与节点均串行）
+parallel = []
+# 控制重试逻辑（关闭后忽略节点 retry_config）
+retry = []
+# 控制性能统计与时间度量（关闭后不填充 stats）
+perf-metrics = []
+# 细粒度详细日志：暂时仍由运行时配置开关，后续可直接移至 feature
+detailed-logging = []

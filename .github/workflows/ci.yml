@@ -15,6 +15,68 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  feature-matrix:
+    name: 特性组合编译
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 仅最小 core 能力（不启用默认特性）
+          - name: minimal-core
+            features: "core"
+            default_features: false
+          # 启用 runtime（最小）
+          - name: runtime-min
+            features: "runtime"
+            default_features: false
+          # runtime + 并行 + 重试
+
+          - name: runtime-parallel-retry
+            features: "parallel retry"
+            default_features: false
+          # 仅 yaml（不引入 runtime）
+          - name: yaml-only
+            features: "yaml"
+            default_features: false
+          # yaml + runtime 全性能特性（不含详细日志）
+          - name: yaml-runtime-full
+            features: "yaml parallel retry perf-metrics"
+            default_features: false
+          # 全部（默认特性 + 性能度量 + 详细日志 + 并行 + 重试）
+          - name: full-debug
+            features: "parallel retry perf-metrics detailed-logging"
+            default_features: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: 缓存依赖
+        uses: Swatinem/rust-cache@v2
+      - name: 构建 (${{ matrix.name }})
+        run: |
+          if [ "${{ matrix.default_features }}" = 'false' ]; then
+            cargo build -p flowbuilder --no-default-features --features "${{ matrix.features }}"
+          else
+            cargo build -p flowbuilder --features "${{ matrix.features }}"
+          fi
+      - name: Check (${{ matrix.name }})
+        run: |
+          if [ "${{ matrix.default_features }}" = 'false' ]; then
+            cargo check -p flowbuilder --no-default-features --features "${{ matrix.features }}"
+          else
+            cargo check -p flowbuilder --features "${{ matrix.features }}"
+          fi
+      - name: Smoke Test (${{ matrix.name }})
+        if: contains(matrix.name, 'full') || matrix.name == 'runtime-parallel-retry'
+        run: |
+          if [ "${{ matrix.default_features }}" = 'false' ]; then
+            cargo test -p flowbuilder-runtime --no-default-features --features "${{ matrix.features }}" -- --test-threads=1
+          else
+            cargo test -p flowbuilder-runtime --features "${{ matrix.features }}" -- --test-threads=1
+          fi
   test:
     name: 测试
     runs-on: ubuntu-latest

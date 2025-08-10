@@ -7,11 +7,20 @@ use crate::config_parser::YamlConfigParser;
 use crate::expression::ExpressionEvaluator;
 use anyhow::{Context, Result};
 use flowbuilder_context::SharedContext;
-use flowbuilder_core::{ExecutionPlan, Executor, ExecutorStatus};
+#[cfg(feature = "runtime")]
+use flowbuilder_core::ExecutionPlan;
+use flowbuilder_core::{Executor, ExecutorStatus};
+#[cfg(all(feature = "runtime", feature = "perf-metrics"))]
+use flowbuilder_runtime::ExecutionStats;
+#[cfg(feature = "runtime")]
 use flowbuilder_runtime::{
     EnhancedFlowOrchestrator, EnhancedTaskExecutor, ExecutionComplexity,
-    ExecutionResult, ExecutionStats, ExecutorConfig,
+    ExecutionResult, ExecutorConfig,
 };
+
+#[cfg(not(feature = "runtime"))]
+#[derive(Debug, Clone)]
+pub struct ExecutionResultPlaceholder;
 
 #[cfg(test)]
 use std::sync::Arc;
@@ -23,8 +32,10 @@ pub struct DynamicFlowExecutor {
     /// 配置解析器
     parser: YamlConfigParser,
     /// 流程编排器
+    #[cfg(feature = "runtime")]
     orchestrator: EnhancedFlowOrchestrator,
     /// 任务执行器
+    #[cfg(feature = "runtime")]
     executor: EnhancedTaskExecutor,
     /// 表达式评估器
     evaluator: ExpressionEvaluator,
@@ -40,9 +51,9 @@ impl DynamicFlowExecutor {
         parser.validate().context("配置验证失败")?;
 
         // 创建流程编排器
+        #[cfg(feature = "runtime")]
         let orchestrator = EnhancedFlowOrchestrator::new();
-
-        // 创建任务执行器
+        #[cfg(feature = "runtime")]
         let executor = EnhancedTaskExecutor::new();
 
         // 创建表达式评估器
@@ -53,13 +64,16 @@ impl DynamicFlowExecutor {
         Ok(Self {
             config,
             parser,
+            #[cfg(feature = "runtime")]
             orchestrator,
+            #[cfg(feature = "runtime")]
             executor,
             evaluator,
         })
     }
 
     /// 使用自定义执行器配置创建
+    #[cfg(feature = "runtime")]
     pub fn with_executor_config(
         config: WorkflowConfig,
         executor_config: ExecutorConfig,
@@ -67,7 +81,9 @@ impl DynamicFlowExecutor {
         let parser = YamlConfigParser::new(config.clone());
         parser.validate().context("配置验证失败")?;
 
+        #[cfg(feature = "runtime")]
         let orchestrator = EnhancedFlowOrchestrator::new();
+        #[cfg(feature = "runtime")]
         let executor = EnhancedTaskExecutor::with_config(executor_config);
 
         let mut evaluator = ExpressionEvaluator::new();
@@ -77,13 +93,16 @@ impl DynamicFlowExecutor {
         Ok(Self {
             config,
             parser,
+            #[cfg(feature = "runtime")]
             orchestrator,
+            #[cfg(feature = "runtime")]
             executor,
             evaluator,
         })
     }
 
     /// 执行工作流 - 新的分层架构实现
+    #[cfg(feature = "runtime")]
     pub async fn execute(
         &mut self,
         context: SharedContext,
@@ -105,6 +124,7 @@ impl DynamicFlowExecutor {
             .map(|(k, v)| (k, serde_yaml::Value::String(v)))
             .collect();
 
+        #[cfg(feature = "runtime")]
         let execution_plan = self
             .orchestrator
             .create_execution_plan(
@@ -116,19 +136,32 @@ impl DynamicFlowExecutor {
             )
             .context("执行计划创建失败")?;
 
+        #[cfg(not(feature = "runtime"))]
+        let execution_plan: ExecutionPlan = {
+            return Err(anyhow::anyhow!(
+                "运行时未启用: 请开启 feature 'runtime' 后使用执行功能"
+            ));
+        };
+
         println!("执行计划生成完成：");
         println!("  总阶段数: {}", execution_plan.phases.len());
         println!("  总节点数: {}", execution_plan.metadata.total_nodes);
         println!("  预计耗时: {:?}", execution_plan.estimated_duration());
 
         // 第3步：分析执行复杂度
+        #[cfg(feature = "runtime")]
         let complexity = self.orchestrator.analyze_complexity(&execution_plan);
+        #[cfg(feature = "runtime")]
         println!("执行复杂度分析：");
-        println!("  复杂度分数: {:.2}", complexity.complexity_score);
-        println!("  最大并行度: {}", complexity.max_parallel_nodes);
-        println!("  条件节点数: {}", complexity.conditional_nodes);
+        #[cfg(feature = "runtime")]
+        {
+            println!("  复杂度分数: {:.2}", complexity.complexity_score);
+            println!("  最大并行度: {}", complexity.max_parallel_nodes);
+            println!("  条件节点数: {}", complexity.conditional_nodes);
+        }
 
         // 第4步：执行任务
+        #[cfg(feature = "runtime")]
         let result = self
             .executor
             .execute_plan(execution_plan, context)
@@ -144,17 +177,21 @@ impl DynamicFlowExecutor {
         println!("  阶段数: {}", result.phase_results.len());
 
         // 打印执行统计
-        let stats = self.executor.get_stats();
-        println!("执行统计：");
-        println!("  总任务数: {}", stats.total_tasks);
-        println!("  成功任务数: {}", stats.successful_tasks);
-        println!("  失败任务数: {}", stats.failed_tasks);
-        println!("  平均执行时间: {:?}", stats.average_execution_time);
+        #[cfg(all(feature = "runtime", feature = "perf-metrics"))]
+        {
+            let stats = self.executor.get_stats();
+            println!("执行统计：");
+            println!("  总任务数: {}", stats.total_tasks);
+            println!("  成功任务数: {}", stats.successful_tasks);
+            println!("  失败任务数: {}", stats.failed_tasks);
+            println!("  平均执行时间: {:?}", stats.average_execution_time);
+        }
 
         Ok(result)
     }
 
     /// 获取执行计划预览（不执行）
+    #[cfg(feature = "runtime")]
     pub fn get_execution_plan_preview(&self) -> Result<ExecutionPlan> {
         let parse_result = self.parser.parse_full().context("配置解析失败")?;
 
@@ -174,12 +211,14 @@ impl DynamicFlowExecutor {
     }
 
     /// 分析工作流复杂度
+    #[cfg(feature = "runtime")]
     pub fn analyze_workflow_complexity(&self) -> Result<ExecutionComplexity> {
         let execution_plan = self.get_execution_plan_preview()?;
         Ok(self.orchestrator.analyze_complexity(&execution_plan))
     }
 
     /// 验证工作流配置
+    #[cfg(feature = "runtime")]
     pub fn validate_workflow(&self) -> Result<()> {
         // 验证配置
         self.parser.validate()?;
@@ -194,6 +233,7 @@ impl DynamicFlowExecutor {
     }
 
     /// 获取执行统计信息
+    #[cfg(all(feature = "runtime", feature = "perf-metrics"))]
     pub fn get_stats(&self) -> &ExecutionStats {
         self.executor.get_stats()
     }
@@ -220,13 +260,23 @@ impl DynamicFlowExecutor {
     }
 
     /// 获取执行器状态
+    #[cfg(feature = "runtime")]
     pub fn executor_status(&self) -> ExecutorStatus {
         self.executor.status()
     }
+    #[cfg(not(feature = "runtime"))]
+    pub fn executor_status(&self) -> ExecutorStatus {
+        ExecutorStatus::Idle
+    }
 
     /// 停止执行器
+    #[cfg(feature = "runtime")]
     pub async fn stop(&mut self) -> Result<()> {
         self.executor.stop().await
+    }
+    #[cfg(not(feature = "runtime"))]
+    pub async fn stop(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -245,6 +295,7 @@ pub struct WorkflowInfo {
     pub flow_var_count: usize,
 }
 
+#[cfg(feature = "runtime")]
 impl Executor for DynamicFlowExecutor {
     type Input = SharedContext;
     type Output = ExecutionResult;
@@ -263,6 +314,30 @@ impl Executor for DynamicFlowExecutor {
 
     async fn stop(&mut self) -> Result<(), Self::Error> {
         self.stop().await
+    }
+}
+
+#[cfg(not(feature = "runtime"))]
+impl Executor for DynamicFlowExecutor {
+    type Input = SharedContext;
+    type Output = (); // 无执行逻辑
+    type Error = anyhow::Error;
+
+    async fn execute(
+        &mut self,
+        _input: Self::Input,
+    ) -> Result<Self::Output, Self::Error> {
+        Err(anyhow::anyhow!(
+            "运行时未启用: 启用 feature 'runtime' 才能执行工作流"
+        ))
+    }
+
+    fn status(&self) -> ExecutorStatus {
+        self.executor_status()
+    }
+
+    async fn stop(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
 

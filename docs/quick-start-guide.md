@@ -570,3 +570,23 @@ impl ServiceContainer {
 这样设计确保了第一阶段专注单机性能，同时为分布式扩展预留完整接口。
 
 ---
+
+## 附录：Feature 组合速查
+
+| 场景            | Cargo features                                                 | import 示例                             |
+| --------------- | -------------------------------------------------------------- | --------------------------------------- |
+| 最小核心        | core                                                           | `use flowbuilder::prelude::*;`          |
+| 并行执行        | core, runtime, parallel                                        | `use flowbuilder::runtime::prelude::*;` |
+| 重试 + 并行     | core, runtime, parallel, retry                                 | 同上                                    |
+| YAML 动态加载   | yaml                                                           | `use flowbuilder::yaml::prelude::*;`    |
+| YAML + 高级执行 | yaml, runtime                                                  | 两个 prelude 分别导入                   |
+| 全量调试        | yaml, runtime, parallel, retry, perf-metrics, detailed-logging | 同上                                    |
+
+最小体积建议：不需要并行/重试/指标时仅保留 `core` 或 `core + runtime`。
+
+```toml
+[dependencies]
+flowbuilder = { version = "0.1.0", default-features = false, features = ["core", "runtime"] }
+```
+
+> 注意：`yaml` 不再自动 re-export `runtime`，需要同时使用请显式启用并分别导入。

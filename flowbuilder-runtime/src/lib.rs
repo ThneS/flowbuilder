@@ -12,9 +12,12 @@ pub use enhanced_orchestrator::{
 };
 
 pub use enhanced_executor::{
-    EnhancedTaskExecutor, ExecutionResult, ExecutionStats, ExecutorConfig,
-    NodeResult, PhaseResult,
+    EnhancedTaskExecutor, ExecutionResult, ExecutorConfig, NodeResult,
+    PhaseResult,
 };
+
+#[cfg(feature = "perf-metrics")]
+pub use enhanced_executor::ExecutionStats;
 
 /// 预导入模块
 pub mod prelude {
@@ -23,6 +26,9 @@ pub mod prelude {
         EnhancedFlowOrchestrator, EnhancedTaskExecutor, ExecutionComplexity,
         ExecutionResult, NodeResult, PhaseResult,
     };
+
+    #[cfg(feature = "perf-metrics")]
+    pub use crate::ExecutionStats;
 
     // 核心接口
     pub use flowbuilder_core::{

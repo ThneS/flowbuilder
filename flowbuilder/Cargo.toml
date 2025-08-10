@@ -1,6 +1,6 @@
 [package]
 name = "flowbuilder"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "An async flow orchestration framework with conditional execution and context sharing."
 authors = ["Thne"]
@@ -13,10 +13,10 @@ homepage = "https://github.com/ThneS/flowbuilder"
 documentation = "https://docs.rs/flowbuilder"
 
 [dependencies]
-flowbuilder-core = "0.1.0"
-flowbuilder-context = "0.1.0"
-flowbuilder-runtime = { version = "0.1.0", optional = true }
-flowbuilder-yaml = { version = "0.1.0", optional = true }
+flowbuilder-core = { version = "0.1.1", path = "../flowbuilder-core" }
+flowbuilder-context = { version = "0.1.1", path = "../flowbuilder-context" }
+flowbuilder-runtime = { version = "0.1.1", path = "../flowbuilder-runtime", optional = true, features = [] }
+flowbuilder-yaml = { version = "0.1.1", path = "../flowbuilder-yaml", optional = true }
 
 # Re-export workspace dependencies
 anyhow = { workspace = true }
@@ -27,6 +27,11 @@ default = ["core", "yaml", "runtime"]
 core = ["flowbuilder-core/default"]
 runtime = ["dep:flowbuilder-runtime", "flowbuilder-core/runtime"]
 yaml = ["dep:flowbuilder-yaml"]
+# 透传 runtime 子特性
+perf-metrics = ["runtime", "flowbuilder-runtime/perf-metrics"]
+parallel = ["runtime", "flowbuilder-runtime/parallel"]
+retry = ["runtime", "flowbuilder-runtime/retry"]
+detailed-logging = ["runtime", "flowbuilder-runtime/detailed-logging"]
 
 [[example]]
 name = "new_architecture_demo"

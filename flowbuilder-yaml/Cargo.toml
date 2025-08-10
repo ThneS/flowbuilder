@@ -1,6 +1,6 @@
 [package]
 name = "flowbuilder-yaml"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "YAML/JSON dynamic flow loading for FlowBuilder"
 authors = ["Thne"]
@@ -12,20 +12,24 @@ homepage = "https://github.com/ThneS/flowbuilder"
 documentation = "https://docs.rs/flowbuilder-yaml"
 
 [dependencies]
-anyhow = "1.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9"
-serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
-uuid = { version = "1.0", features = ["v4"] }
-regex = "1.0"
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+uuid = { workspace = true }
+regex = { workspace = true }
 
 # FlowBuilder 依赖
-flowbuilder-core = "0.1.0"
-flowbuilder-context = "0.1.0"
-flowbuilder-runtime = "0.1.0"
+flowbuilder-core = { version = "0.1.1", path = "../flowbuilder-core" }
+flowbuilder-context = { version = "0.1.1", path = "../flowbuilder-context" }
+flowbuilder-runtime = { version = "0.1.1", path = "../flowbuilder-runtime", optional = true }
 
 [features]
 default = []
-full = ["runtime"]
-runtime = []
+# 运行时支持
+runtime = ["flowbuilder-runtime"]
+# 性能度量（透传到 runtime）
+perf-metrics = ["runtime", "flowbuilder-runtime/perf-metrics"]
+# 全部（当前等价于 runtime + perf-metrics）
+full = ["runtime", "perf-metrics"]

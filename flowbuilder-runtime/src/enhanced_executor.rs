@@ -20,7 +20,7 @@ pub struct EnhancedTaskExecutor {
     status: ExecutorStatus,
     /// 并发控制信号量
     semaphore: Arc<Semaphore>,
-    /// 执行统计
+    /// 执行统计（可选）
     stats: ExecutionStats,
 }
 
@@ -31,10 +31,6 @@ pub struct ExecutorConfig {
     pub max_concurrent_tasks: usize,
     /// 默认超时时间（毫秒）
     pub default_timeout: u64,
-    /// 是否启用性能监控
-    pub enable_performance_monitoring: bool,
-    /// 是否启用详细日志
-    pub enable_detailed_logging: bool,
 }
 
 impl Default for ExecutorConfig {
@@ -42,8 +38,6 @@ impl Default for ExecutorConfig {
         Self {
             max_concurrent_tasks: 10,
             default_timeout: 30000, // 30秒
-            enable_performance_monitoring: true,
-            enable_detailed_logging: false,
         }
     }
 }
@@ -106,7 +100,8 @@ impl EnhancedTaskExecutor {
         self.status = ExecutorStatus::Running;
         let start_time = Instant::now();
 
-        if self.config.enable_detailed_logging {
+        #[cfg(feature = "detailed-logging")]
+        {
             println!("开始执行计划: {}", plan.metadata.workflow_name);
             println!("总阶段数: {}", plan.phases.len());
             println!("总节点数: {}", plan.metadata.total_nodes);
@@ -126,16 +121,14 @@ impl EnhancedTaskExecutor {
         self.setup_context(&plan, context.clone()).await?;
 
         // 按阶段执行
+        #[cfg(feature = "detailed-logging")]
         for (index, phase) in plan.phases.iter().enumerate() {
-            if self.config.enable_detailed_logging {
-                println!(
-                    "执行阶段 {}: {} ({:?})",
-                    index + 1,
-                    phase.name,
-                    phase.execution_mode
-                );
-            }
-
+            println!(
+                "执行阶段 {}: {} ({:?})",
+                index + 1,
+                phase.name,
+                phase.execution_mode
+            );
             let phase_start = Instant::now();
             let phase_result =
                 match self.execute_phase(phase, context.clone()).await {
@@ -155,10 +148,33 @@ impl EnhancedTaskExecutor {
                         }
                     }
                 };
-
             result.phase_results.push(phase_result);
-
-            // 如果阶段失败，根据配置决定是否继续
+            if !result.success {
+                break;
+            }
+        }
+        #[cfg(not(feature = "detailed-logging"))]
+        for phase in plan.phases.iter() {
+            let phase_start = Instant::now();
+            let phase_result =
+                match self.execute_phase(phase, context.clone()).await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        result.success = false;
+                        result.error_message = Some(e.to_string());
+                        PhaseResult {
+                            phase_id: phase.id.clone(),
+                            phase_name: phase.name.clone(),
+                            start_time: phase_start,
+                            end_time: Some(Instant::now()),
+                            duration: phase_start.elapsed(),
+                            success: false,
+                            error_message: Some(e.to_string()),
+                            node_results: Vec::new(),
+                        }
+                    }
+                };
+            result.phase_results.push(phase_result);
             if !result.success {
                 break;
             }
@@ -167,12 +183,16 @@ impl EnhancedTaskExecutor {
         result.end_time = Some(Instant::now());
         result.total_duration = start_time.elapsed();
 
-        // 更新统计信息
-        self.update_stats(&result);
+        // 更新统计信息（perf-metrics 特性）
+        #[cfg(feature = "perf-metrics")]
+        {
+            self.update_stats(&result);
+        }
 
         self.status = ExecutorStatus::Idle;
 
-        if self.config.enable_detailed_logging {
+        #[cfg(feature = "detailed-logging")]
+        {
             println!("执行计划完成，总用时: {:?}", result.total_duration);
         }
 
@@ -198,11 +218,12 @@ impl EnhancedTaskExecutor {
         };
 
         // 检查阶段条件
-        if let Some(condition) = &phase.condition {
+        if let Some(_condition) = &phase.condition {
             // 这里应该使用表达式评估器检查条件
             // 为了简化，这里假设条件总是满足
-            if self.config.enable_detailed_logging {
-                println!("  检查阶段条件: {condition}");
+            #[cfg(feature = "detailed-logging")]
+            {
+                println!("  检查阶段条件(已省略表达式)");
             }
         }
 
@@ -215,6 +236,20 @@ impl EnhancedTaskExecutor {
                 }
             }
             PhaseExecutionMode::Parallel => {
+                #[cfg(not(feature = "parallel"))]
+                {
+                    // 并行被禁用时退化为顺序
+                    for node in &phase.nodes {
+                        let node_result =
+                            self.execute_node(node, context.clone()).await?;
+                        phase_result.node_results.push(node_result);
+                    }
+                    phase_result.end_time = Some(Instant::now());
+                    phase_result.duration = start_time.elapsed();
+                    return Ok(phase_result);
+                }
+
+                #[cfg(feature = "parallel")]
                 let mut handles = Vec::new();
 
                 for node in &phase.nodes {
@@ -258,11 +293,10 @@ impl EnhancedTaskExecutor {
                     }
                 }
             }
-            PhaseExecutionMode::Conditional { ref condition } => {
+            PhaseExecutionMode::Conditional { condition: _ } => {
                 // 检查条件
-                if self.config.enable_detailed_logging {
-                    println!("  检查条件: {condition}");
-                }
+                #[cfg(feature = "detailed-logging")]
+                println!("  检查条件(已忽略具体表达式)");
 
                 // 简化的条件检查，实际应该使用表达式评估器
                 let condition_met = true; // 假设条件满足
@@ -273,7 +307,8 @@ impl EnhancedTaskExecutor {
                             self.execute_node(node, context.clone()).await?;
                         phase_result.node_results.push(node_result);
                     }
-                } else if self.config.enable_detailed_logging {
+                } else {
+                    #[cfg(feature = "detailed-logging")]
                     println!("  跳过阶段 {} (条件不满足)", phase.name);
                 }
             }
@@ -312,19 +347,22 @@ impl EnhancedTaskExecutor {
             retry_count: 0,
         };
 
-        if config.enable_detailed_logging {
+        #[cfg(feature = "detailed-logging")]
+        {
             println!("    执行节点: {} - {}", node.id, node.name);
         }
 
         // 检查节点条件
-        if let Some(condition) = &node.condition {
-            if config.enable_detailed_logging {
-                println!("      检查节点条件: {condition}");
+        if let Some(_condition) = &node.condition {
+            #[cfg(feature = "detailed-logging")]
+            {
+                println!("      检查节点条件(已省略表达式)");
             }
             // 简化的条件检查
             let condition_met = true;
             if !condition_met {
-                if config.enable_detailed_logging {
+                #[cfg(feature = "detailed-logging")]
+                {
                     println!("      跳过节点 {} (条件不满足)", node.name);
                 }
                 result.end_time = Some(Instant::now());
@@ -333,12 +371,15 @@ impl EnhancedTaskExecutor {
             }
         }
 
-        // 执行重试逻辑
+        // 执行重试逻辑（可关闭）
+        #[cfg(feature = "retry")]
         let max_retries = node
             .retry_config
             .as_ref()
             .map(|c| c.max_retries)
             .unwrap_or(0);
+        #[cfg(not(feature = "retry"))]
+        let max_retries = 0u32;
         let mut retries = 0;
 
         loop {
@@ -355,7 +396,8 @@ impl EnhancedTaskExecutor {
                         retries += 1;
                         result.retry_count = retries;
 
-                        if config.enable_detailed_logging {
+                        #[cfg(feature = "detailed-logging")]
+                        {
                             println!(
                                 "      重试节点 {} ({}/{})",
                                 node.name, retries, max_retries
@@ -363,6 +405,9 @@ impl EnhancedTaskExecutor {
                         }
 
                         if let Some(retry_config) = &node.retry_config {
+                            #[cfg(not(feature = "retry"))]
+                            { /* 重试功能关闭时不进入延迟逻辑 */ }
+                            #[cfg(feature = "retry")]
                             let delay = match retry_config.strategy {
                                 RetryStrategy::Fixed => retry_config.delay,
                                 RetryStrategy::Exponential { multiplier } => {
@@ -375,7 +420,7 @@ impl EnhancedTaskExecutor {
                                         + (increment * retries as u64)
                                 }
                             };
-
+                            #[cfg(feature = "retry")]
                             tokio::time::sleep(Duration::from_millis(delay))
                                 .await;
                         }
@@ -415,7 +460,8 @@ impl EnhancedTaskExecutor {
         match tokio::time::timeout(timeout_duration, action_future).await {
             Ok(result) => result,
             Err(_) => {
-                if config.enable_detailed_logging {
+                #[cfg(feature = "detailed-logging")]
+                {
                     println!("      节点 {} 执行超时", node.name);
                 }
                 Err(anyhow::anyhow!("节点 {} 执行超时", node.name))
@@ -488,6 +534,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 更新统计信息
+    #[cfg(feature = "perf-metrics")]
     fn update_stats(&mut self, result: &ExecutionResult) {
         self.stats.total_execution_time = result.total_duration;
 
@@ -511,6 +558,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 获取执行统计
+    #[cfg(feature = "perf-metrics")]
     pub fn get_stats(&self) -> &ExecutionStats {
         &self.stats
     }
