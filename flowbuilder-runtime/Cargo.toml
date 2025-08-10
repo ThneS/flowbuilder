@@ -23,7 +23,8 @@ serde_yaml = "0.9"
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
-criterion = "0.5"
+# Enable async_tokio feature so we can use `to_async` in benchmarks
+criterion = { version = "0.5", features = ["async_tokio"] }
 tokio = { workspace = true, features = ["rt", "macros", "rt-multi-thread", "time"] }
 
 [[bench]]

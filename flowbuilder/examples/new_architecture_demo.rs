@@ -120,34 +120,41 @@ workflow:
 
     // 5. 验证工作流
     println!("\n步骤3: 验证工作流配置");
+    #[cfg(feature = "runtime")]
     executor.validate_workflow()?;
     println!("  配置验证通过！");
 
     // 6. 分析工作流复杂度
     println!("\n步骤4: 分析工作流复杂度");
-    let complexity = executor.analyze_workflow_complexity()?;
-    println!("  总节点数: {}", complexity.total_nodes);
-    println!("  总阶段数: {}", complexity.total_phases);
-    println!("  最大并行度: {}", complexity.max_parallel_nodes);
-    println!("  条件节点数: {}", complexity.conditional_nodes);
-    println!("  复杂度分数: {:.2}", complexity.complexity_score);
+    #[cfg(feature = "runtime")]
+    {
+        let complexity = executor.analyze_workflow_complexity()?;
+        println!("  总节点数: {}", complexity.total_nodes);
+        println!("  总阶段数: {}", complexity.total_phases);
+        println!("  最大并行度: {}", complexity.max_parallel_nodes);
+        println!("  条件节点数: {}", complexity.conditional_nodes);
+        println!("  复杂度分数: {:.2}", complexity.complexity_score);
+    }
 
     // 7. 获取执行计划预览
     println!("\n步骤5: 生成执行计划预览");
-    let execution_plan = executor.get_execution_plan_preview()?;
-    println!("  执行阶段数: {}", execution_plan.phases.len());
-    println!("  预计执行时间: {:?}", execution_plan.estimated_duration());
+    #[cfg(feature = "runtime")]
+    {
+        let execution_plan = executor.get_execution_plan_preview()?;
+        println!("  执行阶段数: {}", execution_plan.phases.len());
+        println!("  预计执行时间: {:?}", execution_plan.estimated_duration());
 
-    for (i, phase) in execution_plan.phases.iter().enumerate() {
-        println!(
-            "  阶段 {}: {} ({:?})",
-            i + 1,
-            phase.name,
-            phase.execution_mode
-        );
-        println!("    节点数: {}", phase.nodes.len());
-        for node in &phase.nodes {
-            println!("      - {}: {}", node.id, node.name);
+        for (i, phase) in execution_plan.phases.iter().enumerate() {
+            println!(
+                "  阶段 {}: {} ({:?})",
+                i + 1,
+                phase.name,
+                phase.execution_mode
+            );
+            println!("    节点数: {}", phase.nodes.len());
+            for node in &phase.nodes {
+                println!("      - {}: {}", node.id, node.name);
+            }
         }
     }
 
@@ -159,21 +166,26 @@ workflow:
     println!("\n步骤7: 执行工作流");
     println!("========================================");
 
+    #[cfg(feature = "runtime")]
     let result = executor.execute(context.clone()).await?;
 
     println!("========================================");
     println!("步骤8: 执行结果分析");
-    println!(
-        "  执行状态: {}",
-        if result.success { "成功" } else { "失败" }
-    );
-    println!("  总执行时间: {:?}", result.total_duration);
-    println!("  执行阶段数: {}", result.phase_results.len());
+    #[cfg(feature = "runtime")]
+    {
+        println!(
+            "  执行状态: {}",
+            if result.success { "成功" } else { "失败" }
+        );
+        println!("  总执行时间: {:?}", result.total_duration);
+        println!("  执行阶段数: {}", result.phase_results.len());
+    }
 
     let mut total_nodes = 0;
     let mut successful_nodes = 0;
     let mut failed_nodes = 0;
 
+    #[cfg(feature = "runtime")]
     for (i, phase_result) in result.phase_results.iter().enumerate() {
         println!("  阶段 {}: {}", i + 1, phase_result.phase_name);
         println!(
@@ -213,18 +225,24 @@ workflow:
     }
 
     // 输出节点统计信息
-    println!("\n  节点执行统计:");
-    println!("    总节点数: {total_nodes}");
-    println!("    成功节点数: {successful_nodes}");
-    println!("    失败节点数: {failed_nodes}");
+    #[cfg(feature = "runtime")]
+    {
+        println!("\n  节点执行统计:");
+        println!("    总节点数: {total_nodes}");
+        println!("    成功节点数: {successful_nodes}");
+        println!("    失败节点数: {failed_nodes}");
+    }
 
     // 10. 获取执行统计
     println!("\n步骤9: 执行统计");
-    let stats = executor.get_stats();
-    println!("  总任务数: {}", stats.total_tasks);
-    println!("  成功任务数: {}", stats.successful_tasks);
-    println!("  失败任务数: {}", stats.failed_tasks);
-    println!("  平均执行时间: {:?}", stats.average_execution_time);
+    #[cfg(all(feature = "runtime", feature = "perf-metrics"))]
+    {
+        let stats = executor.get_stats();
+        println!("  总任务数: {}", stats.total_tasks);
+        println!("  成功任务数: {}", stats.successful_tasks);
+        println!("  失败任务数: {}", stats.failed_tasks);
+        println!("  平均执行时间: {:?}", stats.average_execution_time);
+    }
 
     // 11. 检查上下文状态
     println!("\n步骤10: 检查执行上下文");

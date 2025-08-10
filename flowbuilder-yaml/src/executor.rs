@@ -22,7 +22,7 @@ use flowbuilder_runtime::{
 #[derive(Debug, Clone)]
 pub struct ExecutionResultPlaceholder;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 use std::sync::Arc;
 
 /// 统一的动态流程执行器
@@ -345,8 +345,10 @@ impl Executor for DynamicFlowExecutor {
 mod tests {
     use super::*;
     use crate::loader::WorkflowLoader;
+    #[cfg(feature = "runtime")]
     use flowbuilder_context::FlowContext;
 
+    #[cfg(feature = "runtime")]
     #[tokio::test]
     async fn test_new_architecture_execution() {
         let yaml_content = r#"
@@ -402,6 +404,7 @@ workflow:
         assert_eq!(execution_result.phase_results.len(), 1); // 两个任务应该在同一阶段
     }
 
+    #[cfg(feature = "runtime")]
     #[tokio::test]
     async fn test_execution_plan_preview() {
         let yaml_content = r#"
@@ -437,6 +440,7 @@ workflow:
         assert_eq!(plan.metadata.workflow_name, "Preview Test");
     }
 
+    #[cfg(feature = "runtime")]
     #[tokio::test]
     async fn test_workflow_complexity_analysis() {
         let yaml_content = r#"

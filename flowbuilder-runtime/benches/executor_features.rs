@@ -46,30 +46,30 @@ fn bench_executor(c: &mut Criterion) {
     for &nodes in &[10usize, 50] {
         // baseline: sequential
         group.bench_function(format!("seq_{nodes}"), |b| {
-            b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(
-                || async move {
-                    let mut exec = EnhancedTaskExecutor::new();
-                    let plan = build_plan(false, nodes);
-                    let ctx = Arc::new(tokio::sync::Mutex::new(
-                        flowbuilder_context::FlowContext::default(),
-                    ));
-                    let _ = exec.execute_plan(plan, ctx).await.unwrap();
-                },
-            );
+            // Reuse a runtime per bench invocation for lower overhead
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            b.to_async(&rt).iter(|| async move {
+                let mut exec = EnhancedTaskExecutor::new();
+                // black_box to avoid compiler optimizing away plan construction
+                let plan = black_box(build_plan(false, nodes));
+                let ctx = Arc::new(tokio::sync::Mutex::new(
+                    flowbuilder_context::FlowContext::default(),
+                ));
+                let _ = exec.execute_plan(plan, ctx).await.unwrap();
+            });
         });
         // parallel (if feature enabled)
         #[cfg(feature = "parallel")]
         group.bench_function(format!("par_{nodes}"), |b| {
-            b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(
-                || async move {
-                    let mut exec = EnhancedTaskExecutor::new();
-                    let plan = build_plan(true, nodes);
-                    let ctx = Arc::new(tokio::sync::Mutex::new(
-                        flowbuilder_context::FlowContext::default(),
-                    ));
-                    let _ = exec.execute_plan(plan, ctx).await.unwrap();
-                },
-            );
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            b.to_async(&rt).iter(|| async move {
+                let mut exec = EnhancedTaskExecutor::new();
+                let plan = black_box(build_plan(true, nodes));
+                let ctx = Arc::new(tokio::sync::Mutex::new(
+                    flowbuilder_context::FlowContext::default(),
+                ));
+                let _ = exec.execute_plan(plan, ctx).await.unwrap();
+            });
         });
     }
     group.finish();

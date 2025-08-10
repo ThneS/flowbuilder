@@ -23,10 +23,13 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 
 [features]
-default = ["core", "yaml", "runtime"]
+# 默认启用核心 + YAML(含运行时) 方便示例直接编译
+default = ["core", "yaml-runtime"]
 core = ["flowbuilder-core/default"]
 runtime = ["dep:flowbuilder-runtime", "flowbuilder-core/runtime"]
 yaml = ["dep:flowbuilder-yaml"]
+# 组合：同时启用 yaml + runtime 并确保 yaml crate 的 runtime 子特性开启
+yaml-runtime = ["yaml", "runtime", "flowbuilder-yaml/runtime"]
 # 透传 runtime 子特性
 perf-metrics = ["runtime", "flowbuilder-runtime/perf-metrics"]
 parallel = ["runtime", "flowbuilder-runtime/parallel"]
@@ -36,4 +39,4 @@ detailed-logging = ["runtime", "flowbuilder-runtime/detailed-logging"]
 [[example]]
 name = "new_architecture_demo"
 path = "examples/new_architecture_demo.rs"
-required-features = ["yaml", "runtime"]
+required-features = ["yaml-runtime"]
