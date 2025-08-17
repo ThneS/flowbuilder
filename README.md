@@ -110,6 +110,7 @@ async fn main() -> anyhow::Result<()> {
 -   [快速入门](docs/quick-start-guide.md)
 -   [架构设计](docs/architecture.md)
 -   [API 参考](docs/api-reference.md)
+-   [Chronetix 集成计划](docs/chronetix-integration-plan.md)
 -   示例：`examples/new_architecture_demo.rs`
 
 运行：

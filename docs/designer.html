@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>Flowbuilder 可视化编排（原型）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#fff; --fg:#222; --muted:#666; --border:#d9d9d9; --brand:#1890ff;
+      --canvas:#fafafa; --node:#fff; --node-border:#c9c9c9; --node-shadow:rgba(0,0,0,.06);
+      --pin:#1890ff; --edge:#999; --edge-active:#1890ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg)}
+    header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border)}
+    header h1{margin:0;font-size:16px;font-weight:600}
+    header .actions{display:flex;gap:8px}
+    button, .btn{background:var(--brand);color:#fff;border:1px solid var(--brand);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+    button.secondary{background:#fff;color:var(--brand)}
+    main{display:grid;grid-template-columns:280px 1fr;height:calc(100vh - 56px)}
+    aside{border-right:1px solid var(--border);padding:12px;overflow:auto}
+    .section-title{font-size:12px;color:var(--muted);margin:8px 0}
+    .palette{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .card{border:1px solid var(--border);background:#fff;border-radius:8px;padding:10px;cursor:grab;user-select:none}
+    .card .type{font-size:11px;color:var(--muted)}
+    .tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .tools .btn{background:#fff;color:#444;border-color:var(--border)}
+
+    .canvas-wrap{position:relative}
+    .canvas{position:relative;height:100%;background:var(--canvas);overflow:auto}
+    svg.wires{position:absolute;inset:0;pointer-events:none}
+
+    .node{position:absolute;min-width:160px;max-width:260px;background:var(--node);border:1px solid var(--node-border);border-radius:10px;box-shadow:0 2px 8px var(--node-shadow);padding:10px;cursor:move}
+    .node .title{font-weight:600;margin-bottom:6px;font-size:13px}
+    .node .meta{display:flex;gap:6px;font-size:11px;color:var(--muted);margin-bottom:8px}
+    .node .kv{display:grid;grid-template-columns:56px 1fr;gap:6px;align-items:center}
+    .node input[type=text]{width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px}
+    .pins{display:flex;justify-content:flex-end;margin-top:6px}
+    .pin{width:10px;height:10px;border-radius:50%;background:var(--pin);cursor:crosshair}
+
+    .status{position:absolute;left:12px;bottom:12px;background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:12px;color:var(--muted)}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    .list{margin-top:8px}
+    .list-item{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;margin-bottom:6px}
+    .del{background:#fff;color:#d9363e;border:1px solid #ffccc7}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Flowbuilder 可视化编排（原型）</h1>
+    <div class="actions">
+      <button id="btnExportYaml">导出 YAML</button>
+      <button id="btnExportJson" class="secondary">导出 JSON</button>
+      <button id="btnImportJson" class="secondary">导入 JSON</button>
+      <button id="btnClear" class="secondary">清空画布</button>
+    </div>
+  </header>
+  <main>
+    <aside>
+      <div class="section-title">组件库</div>
+      <div class="palette">
+        <div class="card" draggable="true" data-type="cmd" data-name="命令执行">
+          <div class="title">命令执行</div>
+          <div class="type">type: cmd</div>
+        </div>
+        <div class="card" draggable="true" data-type="http" data-name="HTTP 调用">
+          <div class="title">HTTP 调用</div>
+          <div class="type">type: http</div>
+        </div>
+        <div class="card" draggable="true" data-type="builtin" data-name="内置动作">
+          <div class="title">内置动作</div>
+          <div class="type">type: builtin</div>
+        </div>
+        <div class="card" draggable="true" data-type="wasm" data-name="WASM 动作">
+          <div class="title">WASM 动作</div>
+          <div class="type">type: wasm</div>
+        </div>
+      </div>
+
+      <div class="section-title">画布</div>
+      <div class="tools">
+        <button id="btnAutoLayout" class="btn">自动排版</button>
+        <button id="btnNewTask" class="btn">新建任务</button>
+      </div>
+      <div class="hint">提示：从左侧拖拽组件到画布；点击一个节点再点击另一个节点可建立 "next" 连线；再次点击源节点可取消连接模式。</div>
+
+      <div class="section-title">任务列表</div>
+      <div id="taskList" class="list"></div>
+    </aside>
+    <div class="canvas-wrap">
+      <div id="canvas" class="canvas"></div>
+      <svg id="wires" class="wires"></svg>
+      <div class="status" id="status">就绪</div>
+    </div>
+  </main>
+
+  <script>
+    // 数据模型
+    const state = {
+      tasks: [], // [{id, name, description, actions:[actionIds]}]
+      nodes: new Map(), // id -> node
+      edges: [], // {from, to}
+      activeTaskId: null,
+      linkingFrom: null,
+      seq: 1,
+    };
+
+    function uid(prefix='n'){ return `${prefix}${Date.now().toString(36)}${(state.seq++).toString(36)}` }
+
+    // 任务管理
+    function ensureTask(){
+      if(!state.activeTaskId){
+        const tId = uid('task_');
+        state.tasks.push({ id: tId, name: '任务1', description: '', actions: []});
+        state.activeTaskId = tId;
+        renderTaskList();
+      }
+      return state.tasks.find(t=>t.id===state.activeTaskId);
+    }
+
+    function renderTaskList(){
+      const el = document.getElementById('taskList');
+      el.innerHTML = '';
+      state.tasks.forEach(t=>{
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `<span title="点击切换">${t.name}</span><button class="del" data-id="${t.id}">删除</button>`;
+        div.onclick = (e)=>{
+          if(e.target.matches('button.del')){
+            // 删除任务及其节点
+            if(confirm('确认删除该任务及其节点？')){
+              if(state.activeTaskId===t.id) state.activeTaskId=null;
+              // 删除节点与边
+              [...state.nodes.values()].filter(n=>n.taskId===t.id).forEach(n=>state.nodes.delete(n.id));
+              state.edges = state.edges.filter(e=> state.nodes.has(e.from) && state.nodes.has(e.to));
+              state.tasks = state.tasks.filter(x=>x.id!==t.id);
+              renderTaskList();
+              renderCanvas();
+            }
+          } else {
+            state.activeTaskId = t.id;
+            renderTaskList();
+          }
+        };
+        if(state.activeTaskId===t.id){ div.style.borderColor = 'var(--brand)'; }
+        el.appendChild(div);
+      });
+      if(state.tasks.length===0){
+        const a = document.createElement('div');
+        a.className = 'hint';
+        a.textContent = '暂无任务，请点击“新建任务”。';
+        el.appendChild(a);
+      }
+    }
+
+    // 画布与节点
+    const canvas = document.getElementById('canvas');
+    const wires = document.getElementById('wires');
+
+    function addNode(type, name, x=40, y=40){
+      const task = ensureTask();
+      const id = uid('act_');
+      const node = { id, taskId: task.id, name: name||type, type, x, y, description: '', parameters: {}, next: null };
+      state.nodes.set(id, node);
+      renderCanvas();
+      return node;
+    }
+
+    function renderCanvas(){
+      canvas.innerHTML = '';
+      // 渲染当前任务的节点
+      const nodes = [...state.nodes.values()].filter(n=>n.taskId===state.activeTaskId);
+      nodes.forEach(n=>{
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.style.left = n.x + 'px';
+        el.style.top = n.y + 'px';
+        el.dataset.id = n.id;
+        el.innerHTML = `
+          <div class="title">${n.name}</div>
+          <div class="meta"><span>${n.type}</span><span>#${n.id.slice(-4)}</span></div>
+          <div class="kv"><label>名称</label><input type="text" value="${n.name}" data-k="name"></div>
+          <div class="kv"><label>描述</label><input type="text" value="${n.description}" data-k="description"></div>
+          <div class="pins"><div class="pin" title="点击以从该节点开始连线"></div></div>
+        `;
+        // 拖拽移动
+        let dragging=false, sx=0, sy=0, ox=0, oy=0;
+        el.addEventListener('mousedown', (e)=>{
+          if(e.target.classList.contains('pin')) return; // pin 由点击逻辑处理
+          dragging=true; sx=e.clientX; sy=e.clientY; ox=n.x; oy=n.y; updateStatus('拖动中…');
+        });
+        document.addEventListener('mousemove', (e)=>{
+          if(!dragging) return; const dx=e.clientX-sx, dy=e.clientY-sy; n.x=ox+dx; n.y=oy+dy; el.style.left=n.x+'px'; el.style.top=n.y+'px'; drawWires();
+        });
+        document.addEventListener('mouseup', ()=>{ if(dragging){ dragging=false; updateStatus('就绪'); } });
+
+        // 输入变更
+        el.querySelectorAll('input').forEach(inp=>{
+          inp.addEventListener('input', ()=>{ n[inp.dataset.k] = inp.value; });
+        });
+
+        // 连接 pin
+        el.querySelector('.pin').addEventListener('click', ()=>{
+          if(state.linkingFrom===n.id){ state.linkingFrom=null; updateStatus('取消连线'); return; }
+          state.linkingFrom = n.id; updateStatus('选择目标节点以建立 next 连线');
+        });
+        el.addEventListener('click', (e)=>{
+          if(state.linkingFrom && state.linkingFrom!==n.id){
+            const from = state.nodes.get(state.linkingFrom);
+            from.next = n.id; // 仅单一 next（MVP）
+            // 维护边集
+            const idx = state.edges.findIndex(ed=>ed.from===from.id);
+            if(idx>=0) state.edges[idx].to = n.id; else state.edges.push({from:from.id,to:n.id});
+            state.linkingFrom=null; updateStatus(`已连接: ${from.id} -> ${n.id}`);
+            drawWires();
+          }
+        });
+
+        canvas.appendChild(el);
+      });
+      drawWires();
+    }
+
+    function drawWires(){
+      const nodes = [...state.nodes.values()].filter(n=>n.taskId===state.activeTaskId);
+      const id2node = new Map(nodes.map(n=>[n.id,n]));
+      wires.setAttribute('width', canvas.scrollWidth);
+      wires.setAttribute('height', canvas.scrollHeight);
+      wires.innerHTML = '';
+      nodes.forEach(n=>{
+        if(n.next && id2node.has(n.next)){
+          const a = n; const b = id2node.get(n.next);
+          const x1=a.x+150, y1=a.y+20; const x2=b.x, y2=b.y+20; // 估算连线锚点
+          const c1x = x1 + 60, c1y = y1; const c2x = x2 - 60, c2y = y2;
+          const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+          path.setAttribute('d', `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`);
+          path.setAttribute('stroke', 'var(--edge)'); path.setAttribute('stroke-width', '2'); path.setAttribute('fill','none');
+          wires.appendChild(path);
+        }
+      });
+    }
+
+    // 导出/导入
+    function buildWorkflow(){
+      ensureTask();
+      const workflow = {
+        workflow: {
+          version: '1.0',
+          env: {},
+          vars: {},
+          template: null,
+          tasks: []
+        }
+      };
+      state.tasks.forEach(t=>{
+        const actions = [...state.nodes.values()].filter(n=>n.taskId===t.id).map(n=>({
+          action: {
+            id: n.id,
+            name: n.name || n.type,
+            description: n.description || '',
+            flow: Object.assign({}, n.next ? { next: n.next } : {}),
+            outputs: {},
+            type: undefined, // 暂存占位，实际字段名为 "type"（YAML/JSON直接输出）
+            parameters: {}
+          }
+        }));
+        // 将 action_type 序列化为 "type"
+        actions.forEach(a=>{ a.action['type'] = getTypeString(a.action.id) });
+
+        workflow.workflow.tasks.push({ task: {
+          id: t.id,
+          name: t.name,
+          description: t.description || '',
+          actions
+        }});
+      });
+      return workflow;
+    }
+
+    function getTypeString(actionId){
+      const n = state.nodes.get(actionId); return (n?.type)||'builtin';
+    }
+
+    function download(filename, content, mime='application/octet-stream'){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([content], {type:mime}));
+      a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    function toYaml(obj, indent=0){
+      const sp = '  '.repeat(indent);
+      if (obj===null) return 'null';
+      if (Array.isArray(obj)){
+        if(obj.length===0) return '[]';
+        return obj.map(v=> sp + '- ' + toYaml(v, indent+1).replace(/^\s*/,'')).join('\n');
+      }
+      if (typeof obj==='object'){
+        const keys = Object.keys(obj);
+        if(keys.length===0) return '{}';
+        return keys.map(k=>{
+          const v = obj[k];
+          const key = /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(k) ? k : JSON.stringify(k);
+          if (v && typeof v==='object' && !Array.isArray(v)){
+            return `${sp}${key}:\n${toYaml(v, indent+1)}`;
+          } else if (Array.isArray(v)){
+            const arrYaml = toYaml(v, indent+1);
+            return `${sp}${key}:\n${arrYaml}`;
+          } else {
+            return `${sp}${key}: ${scalar(v)}`;
+          }
+        }).join('\n');
+      }
+      return scalar(obj);
+    }
+    function scalar(v){
+      if (typeof v==='string'){
+        if(v==='' || /[:#\-\n\t]/.test(v)) return JSON.stringify(v);
+        return v;
+      }
+      return String(v);
+    }
+
+    // 事件
+    document.getElementById('btnExportJson').onclick = ()=>{
+      const wf = buildWorkflow();
+      download('workflow.json', JSON.stringify(wf, null, 2), 'application/json');
+    };
+    document.getElementById('btnExportYaml').onclick = ()=>{
+      const wf = buildWorkflow();
+      const y = toYaml(wf);
+      download('workflow.yaml', y, 'text/yaml');
+    };
+    document.getElementById('btnImportJson').onclick = ()=>{
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'application/json,.json';
+      inp.onchange = async ()=>{
+        const txt = await inp.files[0].text();
+        try{
+          const data = JSON.parse(txt);
+          loadWorkflow(data);
+        }catch(e){ alert('JSON 解析失败: '+e.message); }
+      };
+      inp.click();
+    };
+    document.getElementById('btnClear').onclick = ()=>{
+      if(confirm('清空当前任务与节点？')){
+        state.nodes.clear(); state.edges=[]; state.tasks=[]; state.activeTaskId=null; renderTaskList(); renderCanvas();
+      }
+    };
+    document.getElementById('btnAutoLayout').onclick = ()=>{
+      // 简单自动排版（按 next 拓扑链铺开）
+      const nodes = [...state.nodes.values()].filter(n=>n.taskId===state.activeTaskId);
+      const indeg = new Map(nodes.map(n=>[n.id,0]));
+      nodes.forEach(n=>{ if(n.next && indeg.has(n.next)) indeg.set(n.next, indeg.get(n.next)+1) });
+      const heads = nodes.filter(n=>indeg.get(n.id)===0);
+      let x=40, y=40;
+      function layoutChain(n){
+        let cur=n; let cx=x, cy=y;
+        const visited=new Set();
+        while(cur && !visited.has(cur.id)){
+          visited.add(cur.id);
+          cur.x=cx; cur.y=cy; cx+=240; cur = cur.next? state.nodes.get(cur.next):null;
+        }
+        y += 140;
+      }
+      heads.forEach(layoutChain);
+      renderCanvas();
+    };
+    document.getElementById('btnNewTask').onclick = ()=>{
+      const tId = uid('task_');
+      const name = prompt('任务名称', `任务${state.tasks.length+1}`) || `任务${state.tasks.length+1}`;
+      state.tasks.push({ id:tId, name, description:'', actions:[] });
+      state.activeTaskId = tId; renderTaskList(); renderCanvas();
+    };
+
+    function loadWorkflow(data){
+      // 仅支持当前定义结构的导入（workflow.tasks[].task.actions[].action）
+      state.nodes.clear(); state.edges=[]; state.tasks=[]; state.activeTaskId=null;
+      const wf = data.workflow;
+      if(!wf){ alert('不是有效的 workflow 对象'); return; }
+      (wf.tasks||[]).forEach(t=>{
+        const task = t.task; const tId = task.id || uid('task_');
+        state.tasks.push({ id:tId, name:task.name||'任务', description:task.description||'', actions:[] });
+        state.activeTaskId = tId;
+        (task.actions||[]).forEach(a=>{
+          const ad = a.action; const nId = ad.id || uid('act_');
+          state.nodes.set(nId, { id:nId, taskId:tId, name:ad.name||'动作', type: ad.type||'builtin', description:ad.description||'', parameters: ad.parameters||{}, x:40, y:40, next: ad.flow && ad.flow.next || null });
+        });
+      });
+      renderTaskList(); renderCanvas();
+    }
+
+    // 拖拽创建节点
+    document.querySelectorAll('.card[draggable=true]').forEach(card=>{
+      card.addEventListener('dragstart', e=>{
+        e.dataTransfer.setData('text/plain', JSON.stringify({type:card.dataset.type,name:card.dataset.name}));
+      });
+    });
+    canvas.addEventListener('dragover', e=>{ e.preventDefault(); });
+    canvas.addEventListener('drop', e=>{
+      e.preventDefault();
+      try{
+        const {type, name} = JSON.parse(e.dataTransfer.getData('text/plain'));
+        const rect = canvas.getBoundingClientRect();
+        addNode(type, name, e.clientX - rect.left, e.clientY - rect.top);
+      }catch{ /* ignore */ }
+    });
+
+    // 初始状态
+    ensureTask();
+    renderTaskList();
+    renderCanvas();
+  </script>
+</body>
+</html>
