@@ -81,9 +81,12 @@ impl YamlFlowBuilder {
                         println!("执行命令动作: {}", action.id);
                         // 处理参数
                         for (param_name, param) in action.parameters {
-                            let evaluated_value = evaluator
-                                .evaluate(&format!("{:?}", param.value))
-                                .unwrap_or(param.value.clone());
+                            let evaluated_value = match &param.value {
+                                serde_yaml::Value::String(s) => evaluator
+                                    .evaluate(s)
+                                    .unwrap_or(param.value.clone()),
+                                _ => param.value.clone(),
+                            };
                             println!(
                                 "  参数 {param_name}: {evaluated_value:?}"
                             );
@@ -172,9 +175,12 @@ impl YamlFlowBuilder {
 
                 // 处理参数
                 for (param_name, param) in parameters {
-                    let evaluated_value = evaluator
-                        .evaluate(&format!("{:?}", param.value))
-                        .unwrap_or(param.value.clone());
+                    let evaluated_value = match &param.value {
+                        serde_yaml::Value::String(s) => {
+                            evaluator.evaluate(s).unwrap_or(param.value.clone())
+                        }
+                        _ => param.value.clone(),
+                    };
                     println!("  参数 {param_name}: {evaluated_value:?}");
                 }
 
@@ -210,9 +216,12 @@ impl YamlFlowBuilder {
 
                 // 处理参数（URL, 方法, 头部等）
                 for (param_name, param) in parameters {
-                    let evaluated_value = evaluator
-                        .evaluate(&format!("{:?}", param.value))
-                        .unwrap_or(param.value.clone());
+                    let evaluated_value = match &param.value {
+                        serde_yaml::Value::String(s) => {
+                            evaluator.evaluate(s).unwrap_or(param.value.clone())
+                        }
+                        _ => param.value.clone(),
+                    };
                     println!("  HTTP 参数 {param_name}: {evaluated_value:?}");
                 }
 
@@ -248,9 +257,12 @@ impl YamlFlowBuilder {
 
                 // 处理参数
                 for (param_name, param) in parameters {
-                    let evaluated_value = evaluator
-                        .evaluate(&format!("{:?}", param.value))
-                        .unwrap_or(param.value.clone());
+                    let evaluated_value = match &param.value {
+                        serde_yaml::Value::String(s) => {
+                            evaluator.evaluate(s).unwrap_or(param.value.clone())
+                        }
+                        _ => param.value.clone(),
+                    };
                     println!("  WASM 参数 {param_name}: {evaluated_value:?}");
                 }
 
