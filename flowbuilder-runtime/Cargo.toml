@@ -15,12 +15,14 @@ documentation = "https://docs.rs/flowbuilder-runtime"
 flowbuilder-core = { version = "0.1.1", path = "../flowbuilder-core" }
 flowbuilder-context = { version = "0.1.1", path = "../flowbuilder-context" }
 anyhow = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["process"] }
 uuid = { workspace = true }
 futures = "0.3.31"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
+serde_json = { workspace = true }
 tracing = { workspace = true }
+reqwest = { version = "0.12", features = ["json"], optional = true }
 
 [dev-dependencies]
 # Enable async_tokio feature so we can use `to_async` in benchmarks
@@ -32,7 +34,7 @@ name = "executor_features"
 harness = false
 
 [features]
-default = ["parallel", "retry", "perf-metrics"]
+default = ["parallel", "retry", "perf-metrics", "http"]
 # 控制是否启用并行执行（关闭后阶段与节点均串行）
 parallel = []
 # 控制重试逻辑（关闭后忽略节点 retry_config）
@@ -41,3 +43,5 @@ retry = []
 perf-metrics = []
 # 细粒度详细日志：暂时仍由运行时配置开关，后续可直接移至 feature
 detailed-logging = []
+# HTTP支持
+http = ["dep:reqwest"]
