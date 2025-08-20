@@ -108,7 +108,10 @@ impl FlowBuilder {
                     {
                         let guard = ctx.lock().await;
                         if cond(&guard) {
-                            info!(attempt = attempt + 1, "[wait_until] condition met");
+                            info!(
+                                attempt = attempt + 1,
+                                "[wait_until] condition met"
+                            );
                             return Ok(());
                         }
                     }

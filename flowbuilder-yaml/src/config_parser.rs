@@ -155,7 +155,7 @@ impl YamlConfigParser {
     }
 
     /// 提取任务依赖关系
-    /// 
+    ///
     /// 新语义：当 A.next = B 时，意味着 B 依赖于 A（即 A 执行完后执行 B）
     /// 因此需要查找所有指向当前任务的其他任务，将它们作为当前任务的依赖
     fn extract_dependencies(
@@ -167,7 +167,7 @@ impl YamlConfigParser {
         // 遍历所有任务，查找哪些任务的 flow.next 指向当前任务
         for task_wrapper in &self.config.workflow.tasks {
             let other_task = &task_wrapper.task;
-            
+
             // 跳过当前任务自身
             if other_task.id == task.id {
                 continue;
@@ -549,22 +549,33 @@ workflow:
 
         // Find each node by id
         let setup_node = nodes.iter().find(|n| n.id == "setup_task").unwrap();
-        let notification_node = nodes.iter().find(|n| n.id == "notification_task").unwrap();
-        let process_node = nodes.iter().find(|n| n.id == "process_task").unwrap();
+        let notification_node =
+            nodes.iter().find(|n| n.id == "notification_task").unwrap();
+        let process_node =
+            nodes.iter().find(|n| n.id == "process_task").unwrap();
 
         // Test correct dependency semantics:
         // setup_task.next -> notification_task.next -> process_task.next -> null
         // Should result in:
         // - setup_task has deps: []
-        // - notification_task has deps: [setup_task]  
+        // - notification_task has deps: [setup_task]
         // - process_task has deps: [notification_task]
 
-        assert_eq!(setup_node.dependencies, Vec::<String>::new(), 
-                  "setup_task should have no dependencies");
-        assert_eq!(notification_node.dependencies, vec!["setup_task"], 
-                  "notification_task should depend on setup_task");
-        assert_eq!(process_node.dependencies, vec!["notification_task"], 
-                  "process_task should depend on notification_task");
+        assert_eq!(
+            setup_node.dependencies,
+            Vec::<String>::new(),
+            "setup_task should have no dependencies"
+        );
+        assert_eq!(
+            notification_node.dependencies,
+            vec!["setup_task"],
+            "notification_task should depend on setup_task"
+        );
+        assert_eq!(
+            process_node.dependencies,
+            vec!["notification_task"],
+            "process_task should depend on notification_task"
+        );
     }
 
     #[test]
@@ -614,8 +625,11 @@ workflow:
 
         // Both tasks should have no dependencies since they have next: null
         for node in &nodes {
-            assert_eq!(node.dependencies, Vec::<String>::new(), 
-                      "Tasks with next: null should have no dependencies");
+            assert_eq!(
+                node.dependencies,
+                Vec::<String>::new(),
+                "Tasks with next: null should have no dependencies"
+            );
         }
     }
 }

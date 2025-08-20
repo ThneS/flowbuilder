@@ -181,14 +181,13 @@ impl ExpressionEvaluator {
         let root = self.build_ctx_root_json();
         // 管道拆分
         let stages: Vec<&str> = expr.split('|').map(|s| s.trim()).collect();
-        let mut cur = JsonValue::from(root);
+        let mut cur = root;
         for stage in stages {
             if stage.is_empty() {
                 continue;
             }
-            let next = if stage.starts_with('.') {
+            let next = if let Some(path) = stage.strip_prefix('.') {
                 // 从当前值相对路径
-                let path = &stage[1..];
                 self.get_by_dot_path(&cur, path)
             } else {
                 // 从全局根访问（如 vars.config）
@@ -328,7 +327,7 @@ impl ExpressionEvaluator {
 
     fn yaml_to_json(&self, v: &serde_yaml::Value) -> JsonValue {
         // 通过中转字符串避免数值/布尔丢失
-        serde_json::to_value(v).unwrap_or_else(|_| JsonValue::Null)
+        serde_json::to_value(v).unwrap_or(JsonValue::Null)
     }
 
     fn json_to_yaml(&self, v: JsonValue) -> serde_yaml::Value {

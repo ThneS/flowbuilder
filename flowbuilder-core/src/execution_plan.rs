@@ -321,7 +321,7 @@ impl ExecutionPlan {
 
         // 阶段与节点详情
         for (pi, phase) in self.phases.iter().enumerate() {
-            writeln!(s, "").ok();
+            s.push('\n');
             writeln!(s, "阶段 {}: {}", pi + 1, phase.name).ok();
             writeln!(s, "  - 执行模式: {:?}", phase.execution_mode).ok();
             if let Some(cond) = &phase.condition {
