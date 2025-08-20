@@ -1,6 +1,325 @@
 use anyhow::{Context, Result};
 use regex::Regex;
+use serde_json::Value as JsonValue;
 use std::collections::HashMap;
+
+/// Expression provider trait for pluggable expression evaluation
+pub trait ExpressionProvider {
+    /// Evaluate an expression and return a YAML value
+    fn evaluate(&self, expression: &str) -> Result<serde_yaml::Value>;
+    
+    /// Get the provider name
+    fn name(&self) -> &str;
+}
+
+/// Environment variable provider: ${env:VAR_NAME}
+struct EnvProvider {
+    env_vars: HashMap<String, String>,
+}
+
+impl ExpressionProvider for EnvProvider {
+    fn evaluate(&self, expression: &str) -> Result<serde_yaml::Value> {
+        if let Some(value) = self.env_vars.get(expression) {
+            Ok(serde_yaml::Value::String(value.clone()))
+        } else {
+            Err(anyhow::anyhow!("Environment variable not found: {}", expression))
+        }
+    }
+    
+    fn name(&self) -> &str {
+        "env"
+    }
+}
+
+/// Context provider: ${ctx:action.outputs.key}
+struct ContextProvider {
+    context_vars: HashMap<String, serde_yaml::Value>,
+    flow_vars: HashMap<String, serde_yaml::Value>,
+}
+
+impl ExpressionProvider for ContextProvider {
+    fn evaluate(&self, expression: &str) -> Result<serde_yaml::Value> {
+        // Handle vars.* references
+        if expression.starts_with("vars.") {
+            let var_name = &expression[5..]; // Remove "vars." prefix
+            if let Some(value) = self.flow_vars.get(var_name) {
+                return Ok(value.clone());
+            } else {
+                return Err(anyhow::anyhow!("Flow variable not found: {}", var_name));
+            }
+        }
+        
+        // Handle context path resolution
+        if let Some(value) = self.resolve_context_path(expression)? {
+            Ok(value)
+        } else {
+            Err(anyhow::anyhow!("Context path not found: {}", expression))
+        }
+    }
+    
+    fn name(&self) -> &str {
+        "ctx"
+    }
+}
+
+impl ContextProvider {
+    fn resolve_context_path(&self, path: &str) -> Result<Option<serde_yaml::Value>> {
+        let parts: Vec<&str> = path.split('.').collect();
+
+        if parts.is_empty() {
+            return Ok(None);
+        }
+
+        // Try exact match first
+        if let Some(value) = self.context_vars.get(path) {
+            return Ok(Some(value.clone()));
+        }
+
+        // Try path resolution
+        let mut current = None;
+        for (ctx_key, ctx_value) in &self.context_vars {
+            if ctx_key == path || ctx_key.starts_with(&format!("{}.", parts[0])) {
+                current = Some(ctx_value.clone());
+                break;
+            }
+        }
+
+        Ok(current)
+    }
+}
+
+/// JQ provider using xqpath: ${jq:expression}
+struct JqProvider {
+    context_tree: JsonValue,
+    flow_vars: HashMap<String, serde_yaml::Value>,
+    env_vars: HashMap<String, String>,
+}
+
+impl ExpressionProvider for JqProvider {
+    fn evaluate(&self, expression: &str) -> Result<serde_yaml::Value> {
+        // Check for pipe syntax: setup.outputs.payload | .[0].name
+        let (root_expr, jq_expr) = if expression.contains(" | ") {
+            let parts: Vec<&str> = expression.splitn(2, " | ").collect();
+            (Some(parts[0].trim()), parts[1].trim())
+        } else {
+            (None, expression)
+        };
+        
+        // Determine the root for evaluation
+        let root = if let Some(root_path) = root_expr {
+            // Use specific action output as root
+            self.get_root_from_path(root_path)?
+        } else if expression.starts_with("vars.") {
+            // Switch root to flow vars
+            self.vars_to_json()?
+        } else if expression.starts_with("env.") {
+            // Switch root to env vars
+            self.env_to_json()?
+        } else {
+            // Default to context tree
+            self.context_tree.clone()
+        };
+        
+        // Convert JSON to string for xqpath processing
+        let root_str = serde_json::to_string(&root)?;
+        
+        // Evaluate the jq expression using xqpath
+        let result = xqpath::query!(root_str.as_str(), jq_expr)
+            .map_err(|e| anyhow::anyhow!("JQ evaluation error: {}", e))?;
+            
+        // Convert result back to YAML value
+        self.json_to_yaml(result)
+    }
+    
+    fn name(&self) -> &str {
+        "jq"
+    }
+}
+
+impl JqProvider {
+    fn get_root_from_path(&self, path: &str) -> Result<JsonValue> {
+        // Navigate to the specified path in context tree
+        let parts: Vec<&str> = path.split('.').collect();
+        let mut current = &self.context_tree;
+        
+        for part in parts {
+            if let Some(value) = current.get(part) {
+                current = value;
+            } else {
+                return Err(anyhow::anyhow!("Path not found in context: {}", path));
+            }
+        }
+        
+        Ok(current.clone())
+    }
+    
+    fn vars_to_json(&self) -> Result<JsonValue> {
+        let mut vars_map = serde_json::Map::new();
+        for (key, value) in &self.flow_vars {
+            let json_value = self.yaml_to_json(value.clone())?;
+            vars_map.insert(key.clone(), json_value);
+        }
+        Ok(JsonValue::Object(vars_map))
+    }
+    
+    fn env_to_json(&self) -> Result<JsonValue> {
+        let mut env_map = serde_json::Map::new();
+        for (key, value) in &self.env_vars {
+            env_map.insert(key.clone(), JsonValue::String(value.clone()));
+        }
+        Ok(JsonValue::Object(env_map))
+    }
+    
+    fn yaml_to_json(&self, value: serde_yaml::Value) -> Result<JsonValue> {
+        let json_str = serde_json::to_string(&value)?;
+        let json_value: JsonValue = serde_json::from_str(&json_str)?;
+        Ok(json_value)
+    }
+    
+    fn json_to_yaml(&self, results: Vec<JsonValue>) -> Result<serde_yaml::Value> {
+        // If single result, return it directly; if multiple, return as array
+        let json_result = if results.len() == 1 {
+            results.into_iter().next().unwrap()
+        } else {
+            JsonValue::Array(results)
+        };
+        
+        let yaml_str = serde_yaml::to_string(&json_result)?;
+        let yaml_value: serde_yaml::Value = serde_yaml::from_str(&yaml_str)?;
+        Ok(yaml_value)
+    }
+}
+
+/// Token representing a parsed expression part
+#[derive(Debug, Clone)]
+enum ExpressionToken {
+    /// Literal text that should be preserved as-is
+    Literal(String),
+    /// Provider-based expression: ${provider:expression}
+    ProviderExpression { provider: String, expression: String },
+    /// Legacy expression that needs mapping to provider
+    LegacyExpression(String),
+}
+
+/// Expression tokenizer and normalizer
+struct ExpressionTokenizer;
+
+impl ExpressionTokenizer {
+    /// Parse an expression string into tokens
+    fn tokenize(input: &str) -> Result<Vec<ExpressionToken>> {
+        let mut tokens = Vec::new();
+        let mut current_pos = 0;
+        
+        // Regex patterns for different expression types
+        let provider_regex = Regex::new(r"\$\{(\w+):([^}]+)\}")
+            .context("Failed to compile provider regex")?;
+        let legacy_env_regex = Regex::new(r"\$\{\{\s*env\.(\w+)\s*\}\}")
+            .context("Failed to compile legacy env regex")?;
+        let legacy_vars_regex = Regex::new(r"\$\{\{\s*vars\.(\w+)\s*\}\}")
+            .context("Failed to compile legacy vars regex")?;
+        let legacy_output_regex = Regex::new(r"\$\{([^}:]+)\}")
+            .context("Failed to compile legacy output regex")?;
+        let legacy_env_simple_regex = Regex::new(r"\$env:(\w+)")
+            .context("Failed to compile legacy env simple regex")?;
+        let legacy_jq_regex = Regex::new(r"\$jq:([^$\s]+)")
+            .context("Failed to compile legacy jq regex")?;
+        
+        let mut matches = Vec::new();
+        
+        // Collect all matches with their positions
+        for cap in provider_regex.captures_iter(input) {
+            if let Some(mat) = cap.get(0) {
+                matches.push((mat.start(), mat.end(), ExpressionToken::ProviderExpression {
+                    provider: cap[1].to_string(),
+                    expression: cap[2].to_string(),
+                }));
+            }
+        }
+        
+        for cap in legacy_env_regex.captures_iter(input) {
+            if let Some(mat) = cap.get(0) {
+                matches.push((mat.start(), mat.end(), ExpressionToken::ProviderExpression {
+                    provider: "env".to_string(),
+                    expression: cap[1].to_string(),
+                }));
+            }
+        }
+        
+        for cap in legacy_vars_regex.captures_iter(input) {
+            if let Some(mat) = cap.get(0) {
+                matches.push((mat.start(), mat.end(), ExpressionToken::ProviderExpression {
+                    provider: "ctx".to_string(),
+                    expression: format!("vars.{}", &cap[1]),
+                }));
+            }
+        }
+        
+        for cap in legacy_env_simple_regex.captures_iter(input) {
+            if let Some(mat) = cap.get(0) {
+                matches.push((mat.start(), mat.end(), ExpressionToken::ProviderExpression {
+                    provider: "env".to_string(),
+                    expression: cap[1].to_string(),
+                }));
+            }
+        }
+        
+        for cap in legacy_jq_regex.captures_iter(input) {
+            if let Some(mat) = cap.get(0) {
+                matches.push((mat.start(), mat.end(), ExpressionToken::ProviderExpression {
+                    provider: "jq".to_string(),
+                    expression: cap[1].to_string(),
+                }));
+            }
+        }
+        
+        for cap in legacy_output_regex.captures_iter(input) {
+            if let Some(mat) = cap.get(0) {
+                // Only match if it's not already matched by provider regex
+                let already_matched = matches.iter().any(|(start, end, _)| {
+                    mat.start() >= *start && mat.end() <= *end
+                });
+                if !already_matched {
+                    matches.push((mat.start(), mat.end(), ExpressionToken::ProviderExpression {
+                        provider: "ctx".to_string(),
+                        expression: cap[1].to_string(),
+                    }));
+                }
+            }
+        }
+        
+        // Sort matches by position
+        matches.sort_by_key(|(start, _, _)| *start);
+        
+        // Build tokens with literals in between
+        for (start, end, token) in matches {
+            // Add literal text before this match
+            if current_pos < start {
+                let literal = input[current_pos..start].to_string();
+                if !literal.is_empty() {
+                    tokens.push(ExpressionToken::Literal(literal));
+                }
+            }
+            
+            tokens.push(token);
+            current_pos = end;
+        }
+        
+        // Add remaining literal text
+        if current_pos < input.len() {
+            let literal = input[current_pos..].to_string();
+            if !literal.is_empty() {
+                tokens.push(ExpressionToken::Literal(literal));
+            }
+        }
+        
+        // If no expressions found, treat the whole string as literal
+        if tokens.is_empty() && !input.is_empty() {
+            tokens.push(ExpressionToken::Literal(input.to_string()));
+        }
+        
+        Ok(tokens)
+    }
+}
 
 /// 表达式求值器，用于处理工作流中的变量和表达式
 #[derive(Clone)]
@@ -50,8 +369,159 @@ impl ExpressionEvaluator {
         self.context_vars.get(key.as_ref())
     }
 
-    /// 求值表达式字符串
+    /// Evaluate a YAML value, preserving types for single expressions or doing string interpolation for mixed content
+    pub fn evaluate_yaml(&self, value: &serde_yaml::Value) -> Result<serde_yaml::Value> {
+        match value {
+            serde_yaml::Value::String(s) => {
+                let tokens = ExpressionTokenizer::tokenize(s)?;
+                
+                // If it's a single provider expression, return the native type
+                if tokens.len() == 1 {
+                    if let ExpressionToken::ProviderExpression { provider, expression } = &tokens[0] {
+                        return self.evaluate_provider_expression(provider, expression);
+                    }
+                }
+                
+                // Otherwise, do string interpolation
+                let mut result = String::new();
+                for token in tokens {
+                    match token {
+                        ExpressionToken::Literal(text) => result.push_str(&text),
+                        ExpressionToken::ProviderExpression { provider, expression } => {
+                            let value = self.evaluate_provider_expression(&provider, &expression)?;
+                            result.push_str(&self.yaml_value_to_string(&value));
+                        }
+                        ExpressionToken::LegacyExpression(expr) => {
+                            // This shouldn't happen with current tokenizer, but handle just in case
+                            let value = self.evaluate(&expr)?;
+                            result.push_str(&self.yaml_value_to_string(&value));
+                        }
+                    }
+                }
+                
+                // Parse the result to the appropriate type
+                self.parse_result(&result)
+            }
+            // For non-string values, return as-is
+            _ => Ok(value.clone()),
+        }
+    }
+
+    /// Create a context tree for jq provider
+    fn build_context_tree(&self) -> Result<JsonValue> {
+        let mut context_map = serde_json::Map::new();
+        
+        // Add all context variables to the tree
+        for (key, value) in &self.context_vars {
+            let json_value = self.yaml_to_json(value.clone())?;
+            
+            // Parse nested keys like "action.outputs.key"
+            let parts: Vec<&str> = key.split('.').collect();
+            
+            if parts.len() == 1 {
+                // Simple key
+                context_map.insert(key.clone(), json_value);
+            } else {
+                // Nested key - build the nested structure
+                let mut nested_map = serde_json::Map::new();
+                nested_map.insert(parts[parts.len() - 1].to_string(), json_value);
+                
+                // Build from the inside out
+                for i in (0..parts.len() - 1).rev() {
+                    let mut outer_map = serde_json::Map::new();
+                    if i == parts.len() - 2 {
+                        outer_map.insert(parts[i + 1].to_string(), JsonValue::Object(nested_map));
+                    } else {
+                        outer_map.insert(parts[i + 1].to_string(), JsonValue::Object(nested_map));
+                    }
+                    nested_map = outer_map;
+                }
+                
+                // Insert the top-level key
+                let top_key = parts[0].to_string();
+                if context_map.contains_key(&top_key) {
+                    // Merge with existing nested structure
+                    if let Some(JsonValue::Object(existing)) = context_map.get_mut(&top_key) {
+                        if let JsonValue::Object(new_nested) = JsonValue::Object(nested_map) {
+                            for (k, v) in new_nested {
+                                existing.insert(k, v);
+                            }
+                        }
+                    }
+                } else {
+                    context_map.insert(top_key, JsonValue::Object(nested_map));
+                }
+            }
+        }
+        
+        Ok(JsonValue::Object(context_map))
+    }
+
+    /// Evaluate a provider expression
+    fn evaluate_provider_expression(&self, provider: &str, expression: &str) -> Result<serde_yaml::Value> {
+        match provider {
+            "env" => {
+                let env_provider = EnvProvider {
+                    env_vars: self.env_vars.clone(),
+                };
+                env_provider.evaluate(expression)
+            }
+            "ctx" => {
+                let ctx_provider = ContextProvider {
+                    context_vars: self.context_vars.clone(),
+                    flow_vars: self.flow_vars.clone(),
+                };
+                ctx_provider.evaluate(expression)
+            }
+            "jq" => {
+                let context_tree = self.build_context_tree()?;
+                let jq_provider = JqProvider {
+                    context_tree,
+                    flow_vars: self.flow_vars.clone(),
+                    env_vars: self.env_vars.clone(),
+                };
+                jq_provider.evaluate(expression)
+            }
+            _ => Err(anyhow::anyhow!("Unknown provider: {}", provider))
+        }
+    }
+
+    /// 求值表达式字符串 (legacy method for backward compatibility)
     pub fn evaluate(&self, expression: &str) -> Result<serde_yaml::Value> {
+        let tokens = ExpressionTokenizer::tokenize(expression)?;
+        
+        // If it's a single provider expression, return the native type
+        if tokens.len() == 1 {
+            if let ExpressionToken::ProviderExpression { provider, expression } = &tokens[0] {
+                return self.evaluate_provider_expression(provider, expression);
+            }
+        }
+        
+        // Otherwise, do string interpolation
+        let mut result = String::new();
+        for token in tokens {
+            match token {
+                ExpressionToken::Literal(text) => result.push_str(&text),
+                ExpressionToken::ProviderExpression { provider, expression } => {
+                    let value = self.evaluate_provider_expression(&provider, &expression)?;
+                    result.push_str(&self.yaml_value_to_string(&value));
+                }
+                ExpressionToken::LegacyExpression(expr) => {
+                    // Fallback to legacy evaluation
+                    let value = self.legacy_evaluate(&expr)?;
+                    result.push_str(&self.yaml_value_to_string(&value));
+                }
+            }
+        }
+        
+        // Parse the result to the appropriate type
+        self.parse_result(&result)
+    }
+
+    /// Legacy evaluation method (for any expressions that don't match new patterns)
+    fn legacy_evaluate(&self, expression: &str) -> Result<serde_yaml::Value> {
+        // Handle legacy patterns that might not be caught by tokenizer
+        
         // 处理环境变量引用: ${{ env.VAR_NAME }}
         let env_regex = Regex::new(r"\$\{\{\s*env\.(\w+)\s*\}\}")
             .context("Failed to compile env regex")?;
@@ -106,6 +576,13 @@ impl ExpressionEvaluator {
 
         // 尝试解析结果为合适的类型
         self.parse_result(&result)
+    }
+
+    /// Helper to convert YAML to JSON
+    fn yaml_to_json(&self, value: serde_yaml::Value) -> Result<JsonValue> {
+        let json_str = serde_json::to_string(&value)?;
+        let json_value: JsonValue = serde_json::from_str(&json_str)?;
+        Ok(json_value)
     }
 
     /// 求值条件表达式，返回布尔值

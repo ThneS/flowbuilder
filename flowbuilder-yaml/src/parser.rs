@@ -82,7 +82,7 @@ impl YamlFlowBuilder {
                         // 处理参数
                         for (param_name, param) in action.parameters {
                             let evaluated_value = evaluator
-                                .evaluate(&format!("{:?}", param.value))
+                                .evaluate_yaml(&param.value)
                                 .unwrap_or(param.value.clone());
                             println!(
                                 "  参数 {param_name}: {evaluated_value:?}"
@@ -173,7 +173,7 @@ impl YamlFlowBuilder {
                 // 处理参数
                 for (param_name, param) in parameters {
                     let evaluated_value = evaluator
-                        .evaluate(&format!("{:?}", param.value))
+                        .evaluate_yaml(&param.value)
                         .unwrap_or(param.value.clone());
                     println!("  参数 {param_name}: {evaluated_value:?}");
                 }
@@ -211,7 +211,7 @@ impl YamlFlowBuilder {
                 // 处理参数（URL, 方法, 头部等）
                 for (param_name, param) in parameters {
                     let evaluated_value = evaluator
-                        .evaluate(&format!("{:?}", param.value))
+                        .evaluate_yaml(&param.value)
                         .unwrap_or(param.value.clone());
                     println!("  HTTP 参数 {param_name}: {evaluated_value:?}");
                 }
@@ -249,7 +249,7 @@ impl YamlFlowBuilder {
                 // 处理参数
                 for (param_name, param) in parameters {
                     let evaluated_value = evaluator
-                        .evaluate(&format!("{:?}", param.value))
+                        .evaluate_yaml(&param.value)
                         .unwrap_or(param.value.clone());
                     println!("  WASM 参数 {param_name}: {evaluated_value:?}");
                 }
