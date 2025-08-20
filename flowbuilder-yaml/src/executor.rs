@@ -39,6 +39,9 @@ pub struct DynamicFlowExecutor {
     executor: EnhancedTaskExecutor,
     /// 表达式评估器
     evaluator: ExpressionEvaluator,
+    /// 是否在执行前打印执行计划
+    #[cfg(feature = "runtime")]
+    print_plan: bool,
 }
 
 impl DynamicFlowExecutor {
@@ -69,6 +72,8 @@ impl DynamicFlowExecutor {
             #[cfg(feature = "runtime")]
             executor,
             evaluator,
+            #[cfg(feature = "runtime")]
+            print_plan: false,
         })
     }
 
@@ -98,6 +103,8 @@ impl DynamicFlowExecutor {
             #[cfg(feature = "runtime")]
             executor,
             evaluator,
+            #[cfg(feature = "runtime")]
+            print_plan: false,
         })
     }
 
@@ -147,6 +154,13 @@ impl DynamicFlowExecutor {
         println!("  总阶段数: {}", execution_plan.phases.len());
         println!("  总节点数: {}", execution_plan.metadata.total_nodes);
         println!("  预计耗时: {:?}", execution_plan.estimated_duration());
+
+        // 可选：打印详细执行计划
+        if self.print_plan {
+            println!("\n===== 执行计划明细 =====");
+            println!("{}", execution_plan.to_pretty_string());
+            println!("===== 执行计划明细结束 =====\n");
+        }
 
         // 第3步：分析执行复杂度
         #[cfg(feature = "runtime")]
@@ -215,6 +229,19 @@ impl DynamicFlowExecutor {
     pub fn analyze_workflow_complexity(&self) -> Result<ExecutionComplexity> {
         let execution_plan = self.get_execution_plan_preview()?;
         Ok(self.orchestrator.analyze_complexity(&execution_plan))
+    }
+
+    /// 生成并返回“可读”的执行计划字符串（不执行）
+    #[cfg(feature = "runtime")]
+    pub fn print_execution_plan(&self) -> Result<String> {
+        let plan = self.get_execution_plan_preview()?;
+        Ok(plan.to_pretty_string())
+    }
+
+    /// 设置是否打印执行计划
+    #[cfg(feature = "runtime")]
+    pub fn set_print_plan(&mut self, enabled: bool) {
+        self.print_plan = enabled;
     }
 
     /// 验证工作流配置
@@ -578,28 +605,50 @@ workflow:
 
         // Verify the execution plan has correct number of phases
         // Each task should be in its own phase due to dependencies
-        assert_eq!(plan.phases.len(), 3, "Should have 3 phases for dependent tasks");
+        assert_eq!(
+            plan.phases.len(),
+            3,
+            "Should have 3 phases for dependent tasks"
+        );
 
         // Verify the order of tasks in phases
         // Phase 0: setup_task (no dependencies)
         // Phase 1: notification_task (depends on setup_task)
         // Phase 2: process_task (depends on notification_task)
-        
+
         assert_eq!(plan.phases[0].nodes.len(), 1, "Phase 0 should have 1 node");
-        assert_eq!(plan.phases[0].nodes[0].id, "setup_task", "Phase 0 should contain setup_task");
-        
+        assert_eq!(
+            plan.phases[0].nodes[0].id, "setup_task",
+            "Phase 0 should contain setup_task"
+        );
+
         assert_eq!(plan.phases[1].nodes.len(), 1, "Phase 1 should have 1 node");
-        assert_eq!(plan.phases[1].nodes[0].id, "notification_task", "Phase 1 should contain notification_task");
-        
+        assert_eq!(
+            plan.phases[1].nodes[0].id, "notification_task",
+            "Phase 1 should contain notification_task"
+        );
+
         assert_eq!(plan.phases[2].nodes.len(), 1, "Phase 2 should have 1 node");
-        assert_eq!(plan.phases[2].nodes[0].id, "process_task", "Phase 2 should contain process_task");
+        assert_eq!(
+            plan.phases[2].nodes[0].id, "process_task",
+            "Phase 2 should contain process_task"
+        );
 
         // Verify dependencies are correctly set
-        assert_eq!(plan.phases[0].nodes[0].dependencies, Vec::<String>::new(), 
-                  "setup_task should have no dependencies");
-        assert_eq!(plan.phases[1].nodes[0].dependencies, vec!["setup_task"], 
-                  "notification_task should depend on setup_task");
-        assert_eq!(plan.phases[2].nodes[0].dependencies, vec!["notification_task"], 
-                  "process_task should depend on notification_task");
+        assert_eq!(
+            plan.phases[0].nodes[0].dependencies,
+            Vec::<String>::new(),
+            "setup_task should have no dependencies"
+        );
+        assert_eq!(
+            plan.phases[1].nodes[0].dependencies,
+            vec!["setup_task"],
+            "notification_task should depend on setup_task"
+        );
+        assert_eq!(
+            plan.phases[2].nodes[0].dependencies,
+            vec!["notification_task"],
+            "process_task should depend on notification_task"
+        );
     }
 }

@@ -59,7 +59,7 @@ workflow:
               type: "cmd"
               flow:
                 next_if: "env.ENVIRONMENT == 'development'"
-                next: null
+                next: setup_task
                 retry:
                   max_retries: 3
                   delay: 2000
@@ -87,7 +87,7 @@ workflow:
               description: "发送邮件或消息通知"
               type: "http"
               flow:
-                next: null
+                next: setup_task
                 timeout:
                   duration: 3000
               outputs:
@@ -111,6 +111,8 @@ workflow:
     // 3. 创建执行器
     println!("\n步骤2: 创建动态流程执行器");
     let mut executor = DynamicFlowExecutor::new(config)?;
+    #[cfg(feature = "runtime")]
+    executor.set_print_plan(true);
 
     // 4. 获取工作流信息
     let workflow_info = executor.get_workflow_info();
@@ -140,22 +142,8 @@ workflow:
     println!("\n步骤5: 生成执行计划预览");
     #[cfg(feature = "runtime")]
     {
-        let execution_plan = executor.get_execution_plan_preview()?;
-        println!("  执行阶段数: {}", execution_plan.phases.len());
-        println!("  预计执行时间: {:?}", execution_plan.estimated_duration());
-
-        for (i, phase) in execution_plan.phases.iter().enumerate() {
-            println!(
-                "  阶段 {}: {} ({:?})",
-                i + 1,
-                phase.name,
-                phase.execution_mode
-            );
-            println!("    节点数: {}", phase.nodes.len());
-            for node in &phase.nodes {
-                println!("      - {}: {}", node.id, node.name);
-            }
-        }
+        let pretty = executor.print_execution_plan()?;
+        println!("{}", pretty);
     }
 
     // 8. 创建执行上下文
