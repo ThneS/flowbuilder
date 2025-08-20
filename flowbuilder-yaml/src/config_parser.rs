@@ -566,4 +566,56 @@ workflow:
         assert_eq!(process_node.dependencies, vec!["notification_task"], 
                   "process_task should depend on notification_task");
     }
+
+    #[test]
+    fn test_independent_tasks_no_dependencies() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  env: {}
+  vars:
+    name: "Independent Tasks Test"
+  tasks:
+    - task:
+        id: "task_a"
+        name: "Task A"
+        description: "Independent task A"
+        actions:
+          - action:
+              id: "action_a"
+              name: "Action A"
+              description: "Action A"
+              type: "builtin"
+              flow:
+                next: null
+              outputs: {}
+              parameters: {}
+    - task:
+        id: "task_b"
+        name: "Task B"
+        description: "Independent task B"
+        actions:
+          - action:
+              id: "action_b"
+              name: "Action B"
+              description: "Action B"
+              type: "builtin"
+              flow:
+                next: null
+              outputs: {}
+              parameters: {}
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let parser = YamlConfigParser::new(config);
+        let nodes = parser.parse().unwrap();
+
+        assert_eq!(nodes.len(), 2);
+
+        // Both tasks should have no dependencies since they have next: null
+        for node in &nodes {
+            assert_eq!(node.dependencies, Vec::<String>::new(), 
+                      "Tasks with next: null should have no dependencies");
+        }
+    }
 }
