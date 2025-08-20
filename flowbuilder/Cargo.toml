@@ -21,6 +21,8 @@ flowbuilder-yaml = { version = "0.1.1", path = "../flowbuilder-yaml", optional =
 # Re-export workspace dependencies
 anyhow = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [features]
 # 默认启用核心 + YAML(含运行时) 方便示例直接编译

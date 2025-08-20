@@ -1,7 +1,5 @@
 use crate::config::WorkflowConfig;
 use anyhow::{Context, Result};
-#[cfg(feature = "runtime")]
-use flowbuilder_core::Executor;
 use std::fs;
 use std::path::Path;
 

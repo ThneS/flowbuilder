@@ -8,6 +8,7 @@ use std::pin::Pin;
 #[allow(unused_imports)]
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::{debug, info};
 
 /// YAML 流程构建器，用于从配置动态构建 FlowBuilder
 pub struct YamlFlowBuilder {
@@ -70,7 +71,7 @@ impl YamlFlowBuilder {
             > = Box::pin(async move {
                 match action.action_type {
                     ActionType::Builtin => {
-                        println!("执行内置动作: {}", action.id);
+                        info!(action_id = %action.id, "执行内置动作");
                         // 处理输出
                         for (key, value) in action.outputs {
                             let mut guard = ctx.lock().await;
@@ -78,7 +79,7 @@ impl YamlFlowBuilder {
                         }
                     }
                     ActionType::Cmd => {
-                        println!("执行命令动作: {}", action.id);
+                        info!(action_id = %action.id, "执行命令动作");
                         // 处理参数
                         for (param_name, param) in action.parameters {
                             let evaluated_value = match &param.value {
@@ -87,13 +88,11 @@ impl YamlFlowBuilder {
                                     .unwrap_or(param.value.clone()),
                                 _ => param.value.clone(),
                             };
-                            println!(
-                                "  参数 {param_name}: {evaluated_value:?}"
-                            );
+                            debug!(param = %param_name, value = ?evaluated_value);
                         }
                     }
                     ActionType::Http => {
-                        println!("执行HTTP动作: {}", action.id);
+                        info!(action_id = %action.id, "执行HTTP动作");
                         // 模拟HTTP请求
                         tokio::time::sleep(std::time::Duration::from_millis(
                             100,
@@ -101,7 +100,7 @@ impl YamlFlowBuilder {
                         .await;
                     }
                     ActionType::Wasm => {
-                        println!("执行WASM动作: {}", action.id);
+                        info!(action_id = %action.id, "执行WASM动作");
                         // 模拟WASM执行
                         tokio::time::sleep(std::time::Duration::from_millis(
                             50,
@@ -141,7 +140,7 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行内置动作: {action_id}");
+                info!(action_id = %action_id, "执行内置动作");
 
                 // 将输出存储到上下文中
                 for (key, value) in outputs {
@@ -171,7 +170,7 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行命令动作: {action_id}");
+                info!(action_id = %action_id, "执行命令动作");
 
                 // 处理参数
                 for (param_name, param) in parameters {
@@ -181,7 +180,7 @@ impl YamlFlowBuilder {
                         }
                         _ => param.value.clone(),
                     };
-                    println!("  参数 {param_name}: {evaluated_value:?}");
+                    debug!(param = %param_name, value = ?evaluated_value);
                 }
 
                 // 模拟命令执行
@@ -212,7 +211,7 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行 HTTP 动作: {action_id}");
+                info!(action_id = %action_id, "执行 HTTP 动作");
 
                 // 处理参数（URL, 方法, 头部等）
                 for (param_name, param) in parameters {
@@ -222,7 +221,7 @@ impl YamlFlowBuilder {
                         }
                         _ => param.value.clone(),
                     };
-                    println!("  HTTP 参数 {param_name}: {evaluated_value:?}");
+                    debug!(param = %param_name, value = ?evaluated_value);
                 }
 
                 // 模拟 HTTP 请求
@@ -253,7 +252,7 @@ impl YamlFlowBuilder {
             let mut evaluator = evaluator.clone();
 
             Box::pin(async move {
-                println!("执行 WASM 动作: {action_id}");
+                info!(action_id = %action_id, "执行 WASM 动作");
 
                 // 处理参数
                 for (param_name, param) in parameters {
@@ -263,7 +262,7 @@ impl YamlFlowBuilder {
                         }
                         _ => param.value.clone(),
                     };
-                    println!("  WASM 参数 {param_name}: {evaluated_value:?}");
+                    debug!(param = %param_name, value = ?evaluated_value);
                 }
 
                 // 模拟 WASM 执行

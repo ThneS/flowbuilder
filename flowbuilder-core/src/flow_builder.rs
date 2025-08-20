@@ -2,6 +2,7 @@ use crate::Flow;
 use anyhow::Result;
 use flowbuilder_context::{FlowContext, SharedContext};
 use std::{future::Future, pin::Pin, time::Duration};
+use tracing::{info, warn};
 
 /// Type alias for step functions
 pub type StepFuture = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
@@ -83,9 +84,7 @@ impl FlowBuilder {
                 } else {
                     let trace_id = guard.trace_id.clone();
                     drop(guard);
-                    println!(
-                        "[trace_id:{trace_id}] [step_if] condition not met, skipping step"
-                    );
+                    warn!(trace_id = %trace_id, "[step_if] condition not met, skipping step");
                     Ok(())
                 }
             })
@@ -109,10 +108,7 @@ impl FlowBuilder {
                     {
                         let guard = ctx.lock().await;
                         if cond(&guard) {
-                            println!(
-                                "[wait_until] condition met on attempt {}",
-                                attempt + 1
-                            );
+                            info!(attempt = attempt + 1, "[wait_until] condition met");
                             return Ok(());
                         }
                     }

@@ -590,3 +590,29 @@ flowbuilder = { version = "0.1.0", default-features = false, features = ["core",
 ```
 
 > 注意：`yaml` 不再自动 re-export `runtime`，需要同时使用请显式启用并分别导入。
+
+## 日志与环境变量（建议）
+
+FlowBuilder 使用 tracing 统一日志，入口调用：
+
+```rust
+fn main() {
+    flowbuilder::logging::init();
+    // ...
+}
+```
+
+环境变量：
+
+- RUST_LOG：日志级别/过滤，例如：`RUST_LOG=info,flowbuilder=debug`
+- FB_LOG_FORMAT：输出格式，支持 `pretty|compact|json`
+
+运行示例：
+
+```bash
+RUST_LOG=info,flowbuilder=debug,flowbuilder_runtime=debug \
+FB_LOG_FORMAT=compact \
+cargo run --example new_architecture_demo
+
+FB_LOG_FORMAT=json cargo run --example simple_example
+```

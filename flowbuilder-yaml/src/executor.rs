@@ -10,6 +10,7 @@ use flowbuilder_context::SharedContext;
 #[cfg(feature = "runtime")]
 use flowbuilder_core::ExecutionPlan;
 use flowbuilder_core::{Executor, ExecutorStatus};
+use tracing::{debug, info};
 #[cfg(all(feature = "runtime", feature = "perf-metrics"))]
 use flowbuilder_runtime::ExecutionStats;
 #[cfg(feature = "runtime")]
@@ -114,15 +115,13 @@ impl DynamicFlowExecutor {
         &mut self,
         context: SharedContext,
     ) -> Result<ExecutionResult> {
-        println!("开始执行工作流，使用新的分层架构");
+    info!("开始执行工作流，使用新的分层架构");
 
         // 第1步：解析配置，生成执行节点
         let parse_result = self.parser.parse_full().context("配置解析失败")?;
 
-        println!("配置解析完成：");
-        println!("  工作流名称: {}", parse_result.workflow_name);
-        println!("  工作流版本: {}", parse_result.workflow_version);
-        println!("  节点数量: {}", parse_result.nodes.len());
+    info!("配置解析完成");
+    info!(workflow_name = %parse_result.workflow_name, workflow_version = %parse_result.workflow_version, node_count = parse_result.nodes.len());
 
         // 第2步：流程编排，生成执行计划
         let env_vars = parse_result
@@ -150,28 +149,23 @@ impl DynamicFlowExecutor {
             ));
         };
 
-        println!("执行计划生成完成：");
-        println!("  总阶段数: {}", execution_plan.phases.len());
-        println!("  总节点数: {}", execution_plan.metadata.total_nodes);
-        println!("  预计耗时: {:?}", execution_plan.estimated_duration());
+    info!("执行计划生成完成");
+    info!(phases = execution_plan.phases.len(), total_nodes = execution_plan.metadata.total_nodes, est_duration_ms = ?execution_plan.estimated_duration());
 
         // 可选：打印详细执行计划
         if self.print_plan {
-            println!("\n===== 执行计划明细 =====");
-            println!("{}", execution_plan.to_pretty_string());
-            println!("===== 执行计划明细结束 =====\n");
+            let pretty = execution_plan.to_pretty_string();
+            debug!(plan_pretty = %pretty, "执行计划明细");
         }
 
         // 第3步：分析执行复杂度
         #[cfg(feature = "runtime")]
         let complexity = self.orchestrator.analyze_complexity(&execution_plan);
-        #[cfg(feature = "runtime")]
-        println!("执行复杂度分析：");
+    #[cfg(feature = "runtime")]
+    info!("执行复杂度分析");
         #[cfg(feature = "runtime")]
         {
-            println!("  复杂度分数: {:.2}", complexity.complexity_score);
-            println!("  最大并行度: {}", complexity.max_parallel_nodes);
-            println!("  条件节点数: {}", complexity.conditional_nodes);
+            info!(score = complexity.complexity_score, max_parallel = complexity.max_parallel_nodes, conditional_nodes = complexity.conditional_nodes);
         }
 
         // 第4步：执行任务
@@ -182,23 +176,15 @@ impl DynamicFlowExecutor {
             .await
             .context("任务执行失败")?;
 
-        println!("工作流执行完成：");
-        println!(
-            "  执行结果: {}",
-            if result.success { "成功" } else { "失败" }
-        );
-        println!("  总耗时: {:?}", result.total_duration);
-        println!("  阶段数: {}", result.phase_results.len());
+    info!("工作流执行完成");
+    info!(success = result.success, total_duration_ms = ?result.total_duration, phases = result.phase_results.len());
 
         // 打印执行统计
         #[cfg(all(feature = "runtime", feature = "perf-metrics"))]
         {
             let stats = self.executor.get_stats();
-            println!("执行统计：");
-            println!("  总任务数: {}", stats.total_tasks);
-            println!("  成功任务数: {}", stats.successful_tasks);
-            println!("  失败任务数: {}", stats.failed_tasks);
-            println!("  平均执行时间: {:?}", stats.average_execution_time);
+            info!("执行统计");
+            info!(total_tasks = stats.total_tasks, successful_tasks = stats.successful_tasks, failed_tasks = stats.failed_tasks, average_execution_time_ms = ?stats.average_execution_time);
         }
 
         Ok(result)

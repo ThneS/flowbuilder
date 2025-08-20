@@ -44,11 +44,13 @@ FlowBuilder::new()
 
 ```rust
 use flowbuilder_yaml::prelude::*;
+use tracing::info;
+fn init_logging() { flowbuilder::logging::init(); }
 let yaml = std::fs::read_to_string("workflow.yaml")?;
 let mut exec = DynamicFlowExecutor::from_yaml(&yaml)?;
 let ctx = std::sync::Arc::new(tokio::sync::Mutex::new(flowbuilder_context::FlowContext::default()));
 let result = exec.execute(ctx).await?;
-println!("success = {}", result.success);
+info!(success = result.success);
 ```
 
 ## 增强执行 (Runtime)

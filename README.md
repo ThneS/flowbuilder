@@ -120,6 +120,38 @@ cargo test
 cargo run --example new_architecture_demo
 ```
 
+## 📝 日志与环境变量
+
+FlowBuilder 使用 tracing 作为统一日志框架，建议在应用入口调用统一初始化：
+
+```rust
+fn main() {
+        flowbuilder::logging::init();
+        // ...
+}
+```
+
+环境变量：
+
+- RUST_LOG：控制日志级别与过滤，默认 info。示例：
+    - `RUST_LOG=info,flowbuilder=debug,flowbuilder_runtime=debug`
+- FB_LOG_FORMAT：控制输出格式，默认 pretty。
+    - 支持：`pretty` | `compact` | `json`
+
+示例运行：
+
+```bash
+# 紧凑格式，顶层 info，子 crate 调到 debug
+RUST_LOG=info,flowbuilder=debug,flowbuilder_runtime=debug \
+FB_LOG_FORMAT=compact \
+cargo run --example new_architecture_demo
+
+# JSON 输出，便于采集/分析
+FB_LOG_FORMAT=json cargo run --example simple_example
+```
+
+提示：启用 `detailed-logging` 特性可获得更丰富的调试日志；生产环境建议关闭该特性并根据需要设置过滤规则。
+
 ## 🌟 使用场景
 
 微服务编排 / 数据管道 / CI&CD 自动化 / 业务流程 / API 工作流 / 批处理

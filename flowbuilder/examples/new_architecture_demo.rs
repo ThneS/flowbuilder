@@ -5,10 +5,12 @@
 use flowbuilder_context::FlowContext;
 use flowbuilder_yaml::prelude::*;
 use std::sync::Arc;
+use tracing::{debug, info};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("=== FlowBuilder 新架构演示 ===");
+    flowbuilder::logging::init();
+    info!("=== FlowBuilder 新架构演示 ===");
 
     // 1. 定义工作流配置
     let yaml_content = r#"
@@ -103,70 +105,63 @@ workflow:
 "#;
 
     // 2. 加载工作流配置
-    println!("步骤1: 加载工作流配置");
+    info!("步骤1: 加载工作流配置");
     let config = WorkflowLoader::from_yaml_str(yaml_content)?;
-    println!("  工作流版本: {}", config.workflow.version);
-    println!("  任务数量: {}", config.workflow.tasks.len());
+    info!(version = %config.workflow.version, tasks = config.workflow.tasks.len(), "配置加载完成");
 
     // 3. 创建执行器
-    println!("\n步骤2: 创建动态流程执行器");
+    info!("步骤2: 创建动态流程执行器");
     let mut executor = DynamicFlowExecutor::new(config)?;
     #[cfg(feature = "runtime")]
     executor.set_print_plan(true);
 
     // 4. 获取工作流信息
     let workflow_info = executor.get_workflow_info();
-    println!("  工作流名称: {}", workflow_info.name);
-    println!("  环境变量数: {}", workflow_info.env_var_count);
-    println!("  流程变量数: {}", workflow_info.flow_var_count);
+    info!(name = %workflow_info.name, env_vars = workflow_info.env_var_count, flow_vars = workflow_info.flow_var_count, "工作流信息");
 
     // 5. 验证工作流
-    println!("\n步骤3: 验证工作流配置");
+    info!("步骤3: 验证工作流配置");
     #[cfg(feature = "runtime")]
     executor.validate_workflow()?;
-    println!("  配置验证通过！");
+    info!("配置验证通过");
 
     // 6. 分析工作流复杂度
-    println!("\n步骤4: 分析工作流复杂度");
+    info!("步骤4: 分析工作流复杂度");
     #[cfg(feature = "runtime")]
     {
         let complexity = executor.analyze_workflow_complexity()?;
-        println!("  总节点数: {}", complexity.total_nodes);
-        println!("  总阶段数: {}", complexity.total_phases);
-        println!("  最大并行度: {}", complexity.max_parallel_nodes);
-        println!("  条件节点数: {}", complexity.conditional_nodes);
-        println!("  复杂度分数: {:.2}", complexity.complexity_score);
+        info!(
+            total_nodes = complexity.total_nodes,
+            total_phases = complexity.total_phases,
+            max_parallel = complexity.max_parallel_nodes,
+            conditional_nodes = complexity.conditional_nodes,
+            score = complexity.complexity_score,
+            "复杂度"
+        );
     }
 
     // 7. 获取执行计划预览
-    println!("\n步骤5: 生成执行计划预览");
+    info!("步骤5: 生成执行计划预览");
     #[cfg(feature = "runtime")]
     {
         let pretty = executor.print_execution_plan()?;
-        println!("{}", pretty);
+        debug!(plan_pretty = %pretty, "执行计划预览");
     }
 
     // 8. 创建执行上下文
-    println!("\n步骤6: 创建执行上下文");
+    info!("步骤6: 创建执行上下文");
     let context = Arc::new(tokio::sync::Mutex::new(FlowContext::default()));
 
     // 9. 执行工作流
-    println!("\n步骤7: 执行工作流");
-    println!("========================================");
+    info!("步骤7: 执行工作流");
 
     #[cfg(feature = "runtime")]
     let result = executor.execute(context.clone()).await?;
 
-    println!("========================================");
-    println!("步骤8: 执行结果分析");
+    info!("步骤8: 执行结果分析");
     #[cfg(feature = "runtime")]
     {
-        println!(
-            "  执行状态: {}",
-            if result.success { "成功" } else { "失败" }
-        );
-        println!("  总执行时间: {:?}", result.total_duration);
-        println!("  执行阶段数: {}", result.phase_results.len());
+        info!(success = result.success, total_duration_ms = ?result.total_duration, phases = result.phase_results.len(), "执行结果");
     }
 
     let mut total_nodes = 0;
@@ -175,17 +170,7 @@ workflow:
 
     #[cfg(feature = "runtime")]
     for (i, phase_result) in result.phase_results.iter().enumerate() {
-        println!("  阶段 {}: {}", i + 1, phase_result.phase_name);
-        println!(
-            "    状态: {}",
-            if phase_result.success {
-                "成功"
-            } else {
-                "失败"
-            }
-        );
-        println!("    执行时间: {:?}", phase_result.duration);
-        println!("    节点数: {}", phase_result.node_results.len());
+        info!(phase_index = i + 1, phase_name = %phase_result.phase_name, success = phase_result.success, duration_ms = ?phase_result.duration, node_count = phase_result.node_results.len(), "阶段结果");
 
         for node_result in &phase_result.node_results {
             total_nodes += 1;
@@ -195,68 +180,49 @@ workflow:
                 failed_nodes += 1;
             }
 
-            println!(
-                "      节点 {}: {} ({})",
-                node_result.node_id,
-                node_result.node_name,
-                if node_result.success {
-                    "成功"
-                } else {
-                    "失败"
-                }
-            );
-            println!("        执行时间: {:?}", node_result.duration);
-            if node_result.retry_count > 0 {
-                println!("        重试次数: {}", node_result.retry_count);
-            }
+            info!(node_id = %node_result.node_id, node_name = %node_result.node_name, success = node_result.success, duration_ms = ?node_result.duration, retry_count = node_result.retry_count, "节点结果");
         }
     }
 
     // 输出节点统计信息
     #[cfg(feature = "runtime")]
     {
-        println!("\n  节点执行统计:");
-        println!("    总节点数: {total_nodes}");
-        println!("    成功节点数: {successful_nodes}");
-        println!("    失败节点数: {failed_nodes}");
+        info!(
+            total_nodes = total_nodes,
+            success_nodes = successful_nodes,
+            failed_nodes = failed_nodes,
+            "节点执行统计"
+        );
     }
 
     // 10. 获取执行统计
-    println!("\n步骤9: 执行统计");
+    info!("步骤9: 执行统计");
     #[cfg(all(feature = "runtime", feature = "perf-metrics"))]
     {
         let stats = executor.get_stats();
-        println!("  总任务数: {}", stats.total_tasks);
-        println!("  成功任务数: {}", stats.successful_tasks);
-        println!("  失败任务数: {}", stats.failed_tasks);
-        println!("  平均执行时间: {:?}", stats.average_execution_time);
+        info!(total_tasks = stats.total_tasks, success_tasks = stats.successful_tasks, failed_tasks = stats.failed_tasks, avg_duration_ms = ?stats.average_execution_time, "执行统计");
     }
 
     // 11. 检查上下文状态
-    println!("\n步骤10: 检查执行上下文");
+    info!("步骤10: 检查执行上下文");
     let context_guard = context.lock().await;
-    println!(
-        "  上下文状态: {}",
-        if context_guard.ok { "正常" } else { "异常" }
+    info!(
+        ok = context_guard.ok,
+        errors = context_guard.errors.len(),
+        step_logs = context_guard.step_logs.len(),
+        vars = context_guard.variables.len(),
+        "上下文状态"
     );
-    println!("  错误数量: {}", context_guard.errors.len());
-    println!("  步骤日志数: {}", context_guard.step_logs.len());
-    println!("  变量数量: {}", context_guard.variables.len());
 
     // 显示一些变量
     for (key, value) in context_guard.variables.iter().take(5) {
-        println!("    {key}: {value}");
+        debug!(key = %key, value = %value, "变量样例");
     }
 
     drop(context_guard);
 
-    println!("\n=== 新架构演示完成 ===");
-    println!("架构特点：");
-    println!("1. 配置解析器 - 负责从YAML解析出执行节点");
-    println!("2. 流程编排器 - 负责分析依赖关系并生成执行计划");
-    println!("3. 任务执行器 - 负责按计划执行具体任务");
-    println!("4. 分层清晰 - 每层职责明确，易于维护和扩展");
-    println!("5. 高性能 - 支持并行执行和智能调度");
+    info!("=== 新架构演示完成 ===");
+    info!("架构特点：1. 配置解析器 2. 流程编排器 3. 任务执行器 4. 分层清晰 5. 高性能");
 
     Ok(())
 }
