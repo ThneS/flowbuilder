@@ -275,6 +275,109 @@ impl ExecutionPlan {
 
         Ok(())
     }
+
+    /// 以人类可读的格式输出执行计划
+    pub fn to_pretty_string(&self) -> String {
+        use std::fmt::Write as _;
+        let mut s = String::new();
+        writeln!(s, "执行计划预览").ok();
+        writeln!(s, "- 计划ID: {}", self.metadata.plan_id).ok();
+        writeln!(
+            s,
+            "- 工作流: {} ({})",
+            self.metadata.workflow_name, self.metadata.workflow_version
+        )
+        .ok();
+        if let Ok(datetime) = self
+            .metadata
+            .created_at
+            .duration_since(std::time::UNIX_EPOCH)
+        {
+            writeln!(s, "- 创建时间: {}s", datetime.as_secs()).ok();
+        }
+        writeln!(s, "- 阶段数: {}", self.metadata.total_phases).ok();
+        writeln!(s, "- 节点数: {}", self.metadata.total_nodes).ok();
+        writeln!(s, "- 预计总时长: {:?}", self.estimated_duration()).ok();
+
+        // 变量统计
+        writeln!(s, "- 环境变量: {} 项", self.env_vars.len()).ok();
+        if !self.env_vars.is_empty() {
+            for (i, k) in self.env_vars.keys().take(5).enumerate() {
+                writeln!(s, "  • env[{i}]: {k}").ok();
+            }
+            if self.env_vars.len() > 5 {
+                writeln!(s, "  … 其余 {} 项", self.env_vars.len() - 5).ok();
+            }
+        }
+        writeln!(s, "- 流程变量: {} 项", self.flow_vars.len()).ok();
+        if !self.flow_vars.is_empty() {
+            for (i, k) in self.flow_vars.keys().take(5).enumerate() {
+                writeln!(s, "  • vars[{i}]: {k}").ok();
+            }
+            if self.flow_vars.len() > 5 {
+                writeln!(s, "  … 其余 {} 项", self.flow_vars.len() - 5).ok();
+            }
+        }
+
+        // 阶段与节点详情
+        for (pi, phase) in self.phases.iter().enumerate() {
+            writeln!(s, "").ok();
+            writeln!(s, "阶段 {}: {}", pi + 1, phase.name).ok();
+            writeln!(s, "  - 执行模式: {:?}", phase.execution_mode).ok();
+            if let Some(cond) = &phase.condition {
+                writeln!(s, "  - 阶段条件: {}", cond).ok();
+            }
+            writeln!(s, "  - 节点数: {}", phase.nodes.len()).ok();
+            for (ni, node) in phase.nodes.iter().enumerate() {
+                writeln!(s, "  节点 {}: {} ({})", ni + 1, node.name, node.id)
+                    .ok();
+                writeln!(s, "    • 类型: {:?}", node.node_type).ok();
+                writeln!(s, "    • 优先级: {}", node.priority).ok();
+                if let Some(cond) = &node.condition {
+                    writeln!(s, "    • 条件: {}", cond).ok();
+                }
+                if !node.dependencies.is_empty() {
+                    writeln!(s, "    • 依赖: {}", node.dependencies.join(", "))
+                        .ok();
+                }
+                // 动作概要
+                writeln!(s, "    • 动作: {}", node.action_spec.action_type)
+                    .ok();
+                if !node.action_spec.parameters.is_empty() {
+                    writeln!(
+                        s,
+                        "    • 参数: {} 项",
+                        node.action_spec.parameters.len()
+                    )
+                    .ok();
+                }
+                if !node.action_spec.outputs.is_empty() {
+                    writeln!(
+                        s,
+                        "    • 输出: {} 项",
+                        node.action_spec.outputs.len()
+                    )
+                    .ok();
+                }
+                if let Some(retry) = &node.retry_config {
+                    writeln!(
+                        s,
+                        "    • 重试: 次数={}, 延迟={}ms, 策略={:?}",
+                        retry.max_retries, retry.delay, retry.strategy
+                    )
+                    .ok();
+                }
+                if let Some(timeout) = &node.timeout_config {
+                    writeln!(s, "    • 超时: {}ms", timeout.duration).ok();
+                    if let Some(on) = &timeout.on_timeout {
+                        writeln!(s, "      on_timeout: {}", on).ok();
+                    }
+                }
+            }
+        }
+
+        s
+    }
 }
 
 impl ExecutionNode {

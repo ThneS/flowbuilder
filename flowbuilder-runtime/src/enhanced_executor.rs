@@ -11,6 +11,7 @@ use flowbuilder_core::{
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
+// tracing 宏无需显式 use 引入
 
 /// 增强的任务执行器
 pub struct EnhancedTaskExecutor {
@@ -92,6 +93,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 执行执行计划
+    #[tracing::instrument(level = "info", skip(self, context), fields(workflow = %plan.metadata.workflow_name, phases = plan.phases.len()))]
     pub async fn execute_plan(
         &mut self,
         plan: ExecutionPlan,
@@ -102,9 +104,7 @@ impl EnhancedTaskExecutor {
 
         #[cfg(feature = "detailed-logging")]
         {
-            println!("开始执行计划: {}", plan.metadata.workflow_name);
-            println!("总阶段数: {}", plan.phases.len());
-            println!("总节点数: {}", plan.metadata.total_nodes);
+            tracing::info!(workflow = %plan.metadata.workflow_name, phases = plan.phases.len(), total_nodes = plan.metadata.total_nodes, "开始执行计划");
         }
 
         let mut result = ExecutionResult {
@@ -123,12 +123,7 @@ impl EnhancedTaskExecutor {
         // 按阶段执行
         #[cfg(feature = "detailed-logging")]
         for (index, phase) in plan.phases.iter().enumerate() {
-            println!(
-                "执行阶段 {}: {} ({:?})",
-                index + 1,
-                phase.name,
-                phase.execution_mode
-            );
+            tracing::info!(phase_index = index + 1, phase_name = %phase.name, mode = ?phase.execution_mode, "执行阶段");
             let phase_start = Instant::now();
             let phase_result =
                 match self.execute_phase(phase, context.clone()).await {
@@ -193,13 +188,14 @@ impl EnhancedTaskExecutor {
 
         #[cfg(feature = "detailed-logging")]
         {
-            println!("执行计划完成，总用时: {:?}", result.total_duration);
+            tracing::info!(total_duration_ms = ?result.total_duration, "执行计划完成");
         }
 
         Ok(result)
     }
 
     /// 执行阶段
+    #[tracing::instrument(level = "info", skip(self, context), fields(phase = %phase.name, mode = ?phase.execution_mode))]
     async fn execute_phase(
         &mut self,
         phase: &ExecutionPhase,
@@ -223,7 +219,7 @@ impl EnhancedTaskExecutor {
             // 为了简化，这里假设条件总是满足
             #[cfg(feature = "detailed-logging")]
             {
-                println!("  检查阶段条件(已省略表达式)");
+                tracing::debug!("检查阶段条件(已省略表达式)");
             }
         }
 
@@ -296,7 +292,7 @@ impl EnhancedTaskExecutor {
             PhaseExecutionMode::Conditional { condition: _ } => {
                 // 检查条件
                 #[cfg(feature = "detailed-logging")]
-                println!("  检查条件(已忽略具体表达式)");
+                tracing::debug!("检查条件(已忽略具体表达式)");
 
                 // 简化的条件检查，实际应该使用表达式评估器
                 let condition_met = true; // 假设条件满足
@@ -309,7 +305,7 @@ impl EnhancedTaskExecutor {
                     }
                 } else {
                     #[cfg(feature = "detailed-logging")]
-                    println!("  跳过阶段 {} (条件不满足)", phase.name);
+                    tracing::info!(phase = %phase.name, "跳过阶段 (条件不满足)");
                 }
             }
         }
@@ -321,6 +317,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 执行节点
+    #[tracing::instrument(level = "debug", skip(self, context), fields(node_id = %node.id, node_name = %node.name))]
     async fn execute_node(
         &mut self,
         node: &ExecutionNode,
@@ -330,6 +327,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 静态执行节点（用于并发执行）
+    #[tracing::instrument(level = "debug", skip(context, config), fields(node_id = %node.id, node_name = %node.name))]
     async fn execute_node_static(
         node: &ExecutionNode,
         context: SharedContext,
@@ -349,21 +347,21 @@ impl EnhancedTaskExecutor {
 
         #[cfg(feature = "detailed-logging")]
         {
-            println!("    执行节点: {} - {}", node.id, node.name);
+            tracing::info!(node_id = %node.id, node_name = %node.name, "执行节点");
         }
 
         // 检查节点条件
         if let Some(_condition) = &node.condition {
             #[cfg(feature = "detailed-logging")]
             {
-                println!("      检查节点条件(已省略表达式)");
+                tracing::debug!("检查节点条件(已省略表达式)");
             }
             // 简化的条件检查
             let condition_met = true;
             if !condition_met {
                 #[cfg(feature = "detailed-logging")]
                 {
-                    println!("      跳过节点 {} (条件不满足)", node.name);
+                    tracing::info!(node = %node.name, "跳过节点 (条件不满足)");
                 }
                 result.end_time = Some(Instant::now());
                 result.duration = start_time.elapsed();
@@ -398,10 +396,7 @@ impl EnhancedTaskExecutor {
 
                         #[cfg(feature = "detailed-logging")]
                         {
-                            println!(
-                                "      重试节点 {} ({}/{})",
-                                node.name, retries, max_retries
-                            );
+                            tracing::warn!(node = %node.name, retries = retries, max_retries = max_retries, "重试节点");
                         }
 
                         if let Some(retry_config) = &node.retry_config {
@@ -441,6 +436,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 执行节点动作
+    #[tracing::instrument(level = "debug", skip(context, config), fields(node_id = %node.id, node_name = %node.name, action_type = %node.action_spec.action_type))]
     async fn execute_node_action(
         node: &ExecutionNode,
         context: SharedContext,
@@ -462,7 +458,7 @@ impl EnhancedTaskExecutor {
             Err(_) => {
                 #[cfg(feature = "detailed-logging")]
                 {
-                    println!("      节点 {} 执行超时", node.name);
+                    tracing::error!(node = %node.name, "节点执行超时");
                 }
                 Err(anyhow::anyhow!("节点 {} 执行超时", node.name))
             }
@@ -478,22 +474,22 @@ impl EnhancedTaskExecutor {
             "builtin" => {
                 // 执行内置动作
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                println!("        执行内置动作");
+                tracing::debug!("执行内置动作");
             }
             "cmd" => {
                 // 执行命令动作
                 tokio::time::sleep(Duration::from_millis(200)).await;
-                println!("        执行命令动作");
+                tracing::debug!("执行命令动作");
             }
             "http" => {
                 // 执行HTTP动作
                 tokio::time::sleep(Duration::from_millis(300)).await;
-                println!("        执行HTTP动作");
+                tracing::debug!("执行HTTP动作");
             }
             "wasm" => {
                 // 执行WASM动作
                 tokio::time::sleep(Duration::from_millis(150)).await;
-                println!("        执行WASM动作");
+                tracing::debug!("执行WASM动作");
             }
             _ => {
                 return Err(anyhow::anyhow!(
@@ -513,6 +509,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 设置上下文
+    #[tracing::instrument(level = "debug", skip(self, context), fields(workflow = %plan.metadata.workflow_name))]
     async fn setup_context(
         &self,
         plan: &ExecutionPlan,

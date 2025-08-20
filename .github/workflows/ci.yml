@@ -15,6 +15,21 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  naming-guard:
+    name: 命名守卫（禁止 *_new/_old/legacy 源文件）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 扫描禁止的文件命名
+        run: |
+          set -euo pipefail
+          files=$(git ls-files '*/src/*' | grep -E '(_new|_old|legacy)\.rs$' || true)
+          if [ -n "$files" ]; then
+            echo "发现不允许的文件命名:\n$files"
+            echo "请删除或重命名这些文件以统一版本。"
+            exit 1
+          fi
+
   feature-matrix:
     name: 特性组合编译
     runs-on: ubuntu-latest
@@ -105,8 +120,8 @@ jobs:
       - name: 运行 Clippy
         run: cargo clippy --all-targets --all-features
 
-      - name: 运行测试
-        run: cargo test --all-features
+      - name: 运行测试（workspace）
+        run: cargo test --workspace --all-targets --all-features
 
       - name: 运行文档测试
         run: cargo test --doc

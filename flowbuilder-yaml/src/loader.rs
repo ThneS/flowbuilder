@@ -1,6 +1,5 @@
 use crate::config::WorkflowConfig;
 use anyhow::{Context, Result};
-use flowbuilder_core::Executor; // 使 trait 方法 execute 可用
 use std::fs;
 use std::path::Path;
 
@@ -112,6 +111,7 @@ impl WorkflowLoader {
     }
 
     /// 从配置创建带有 runtime 功能的执行器
+    #[cfg(feature = "runtime")]
     pub fn create_runtime_executor(
         config: WorkflowConfig,
     ) -> Result<crate::executor::DynamicFlowExecutor> {
@@ -120,6 +120,7 @@ impl WorkflowLoader {
     }
 
     /// 快速执行工作流文件（使用 runtime 功能）
+    #[cfg(feature = "runtime")]
     pub async fn execute_workflow_file<P: AsRef<Path>>(path: P) -> Result<()> {
         let config = Self::from_yaml_file(path)?;
         Self::validate(&config)?;
@@ -136,6 +137,7 @@ impl WorkflowLoader {
     }
 
     /// 批量执行多个工作流文件（简化版本）
+    #[cfg(feature = "runtime")]
     pub async fn execute_workflow_batch<P: AsRef<Path>>(
         paths: Vec<P>,
         max_concurrent: usize,

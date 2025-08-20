@@ -93,17 +93,7 @@ impl FlowContext {
 
         self.snapshots.insert(snapshot_id.clone(), snapshot);
 
-        #[cfg(feature = "logger")]
-        tracing::info!(
-            "[trace_id:{}] Created snapshot: {}",
-            self.trace_id,
-            snapshot_id
-        );
-        #[cfg(not(feature = "logger"))]
-        println!(
-            "[trace_id:{}] Created snapshot: {}",
-            self.trace_id, snapshot_id
-        );
+        tracing::info!(trace_id = %self.trace_id, snapshot = %snapshot_id, "Created snapshot");
 
         Ok(())
     }
@@ -127,27 +117,15 @@ impl FlowContext {
         self.ok = snapshot.ok;
         self.errors = snapshot.errors;
 
-        #[cfg(feature = "logger")]
         tracing::info!(
-            "[trace_id:{}] Rolled back to snapshot '{}' ({}). Variables: {} -> {}, Errors: {} -> {}",
-            self.trace_id,
-            snapshot_id,
-            snapshot.description,
-            old_variables_count,
-            self.variables.len(),
-            old_errors_count,
-            self.errors.len()
-        );
-        #[cfg(not(feature = "logger"))]
-        println!(
-            "[trace_id:{}] Rolled back to snapshot '{}' ({}). Variables: {} -> {}, Errors: {} -> {}",
-            self.trace_id,
-            snapshot_id,
-            snapshot.description,
-            old_variables_count,
-            self.variables.len(),
-            old_errors_count,
-            self.errors.len()
+            trace_id = %self.trace_id,
+            snapshot = %snapshot_id,
+            description = %snapshot.description,
+            old_variables = old_variables_count,
+            new_variables = self.variables.len(),
+            old_errors = old_errors_count,
+            new_errors = self.errors.len(),
+            "Rolled back to snapshot"
         );
 
         Ok(())
@@ -159,17 +137,7 @@ impl FlowContext {
             .remove(snapshot_id)
             .ok_or_else(|| format!("Snapshot '{snapshot_id}' not found"))?;
 
-        #[cfg(feature = "logger")]
-        tracing::info!(
-            "[trace_id:{}] Removed snapshot: {}",
-            self.trace_id,
-            snapshot_id
-        );
-        #[cfg(not(feature = "logger"))]
-        println!(
-            "[trace_id:{}] Removed snapshot: {}",
-            self.trace_id, snapshot_id
-        );
+        tracing::info!(trace_id = %self.trace_id, snapshot = %snapshot_id, "Removed snapshot");
 
         Ok(())
     }
@@ -190,17 +158,7 @@ impl FlowContext {
         };
         self.step_logs.push(step_log);
 
-        #[cfg(feature = "logger")]
-        tracing::info!(
-            "[trace_id:{}] [step:{}] starting...",
-            self.trace_id,
-            step_name
-        );
-        #[cfg(not(feature = "logger"))]
-        println!(
-            "[trace_id:{}] [step:{}] starting...",
-            self.trace_id, step_name
-        );
+        tracing::info!(trace_id = %self.trace_id, step = %step_name, "step starting");
     }
 
     pub fn end_step_success(&mut self, step_name: &str) {
@@ -214,18 +172,7 @@ impl FlowContext {
             log.status = StepStatus::Success;
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
-            #[cfg(feature = "logger")]
-            tracing::info!(
-                "[trace_id:{}] [step:{}] completed successfully in {:?}",
-                self.trace_id,
-                step_name,
-                duration
-            );
-            #[cfg(not(feature = "logger"))]
-            println!(
-                "[trace_id:{}] [step:{}] completed successfully in {:?}",
-                self.trace_id, step_name, duration
-            );
+            tracing::info!(trace_id = %self.trace_id, step = %step_name, duration_ms = ?duration, "step success");
         }
     }
 
@@ -241,19 +188,7 @@ impl FlowContext {
             log.error_message = Some(error.to_string());
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
-            #[cfg(feature = "logger")]
-            tracing::error!(
-                "[trace_id:{}] [step:{}] failed after {:?}: {}",
-                self.trace_id,
-                step_name,
-                duration,
-                error
-            );
-            #[cfg(not(feature = "logger"))]
-            println!(
-                "[trace_id:{}] [step:{}] failed after {:?}: {}",
-                self.trace_id, step_name, duration, error
-            );
+            tracing::error!(trace_id = %self.trace_id, step = %step_name, duration_ms = ?duration, error = %error, "step failed");
         }
         self.errors
             .push(format!("[{}] {}: {}", self.trace_id, step_name, error));
@@ -270,19 +205,7 @@ impl FlowContext {
             log.status = StepStatus::Skipped;
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
-            #[cfg(feature = "logger")]
-            tracing::warn!(
-                "[trace_id:{}] [step:{}] skipped after {:?}: {}",
-                self.trace_id,
-                step_name,
-                duration,
-                reason
-            );
-            #[cfg(not(feature = "logger"))]
-            println!(
-                "[trace_id:{}] [step:{}] skipped after {:?}: {}",
-                self.trace_id, step_name, duration, reason
-            );
+            tracing::warn!(trace_id = %self.trace_id, step = %step_name, duration_ms = ?duration, reason = %reason, "step skipped");
         }
     }
 
@@ -297,36 +220,14 @@ impl FlowContext {
             log.status = StepStatus::Timeout;
             let duration = log.end_time.unwrap().duration_since(log.start_time);
 
-            #[cfg(feature = "logger")]
-            tracing::error!(
-                "[trace_id:{}] [step:{}] timed out after {:?}",
-                self.trace_id,
-                step_name,
-                duration
-            );
-            #[cfg(not(feature = "logger"))]
-            println!(
-                "[trace_id:{}] [step:{}] timed out after {:?}",
-                self.trace_id, step_name, duration
-            );
+            tracing::error!(trace_id = %self.trace_id, step = %step_name, duration_ms = ?duration, "step timeout");
         }
         self.errors
             .push(format!("[{}] {}: timeout", self.trace_id, step_name));
     }
 
     pub fn set_variable(&mut self, key: String, value: String) {
-        #[cfg(feature = "logger")]
-        tracing::debug!(
-            "[trace_id:{}] setting variable {} = {}",
-            self.trace_id,
-            key,
-            value
-        );
-        #[cfg(not(feature = "logger"))]
-        println!(
-            "[trace_id:{}] setting variable {} = {}",
-            self.trace_id, key, value
-        );
+        tracing::debug!(trace_id = %self.trace_id, key = %key, value = %value, "set variable");
 
         self.variables.insert(key, value);
     }
@@ -339,12 +240,8 @@ impl FlowContext {
         let summary =
             format!("\n=== Flow Summary [trace_id: {}] ===", self.trace_id);
 
-        #[cfg(feature = "logger")]
-        tracing::info!("{}", summary);
-        #[cfg(not(feature = "logger"))]
-        println!("{}", summary);
-
-        println!("Total steps: {}", self.step_logs.len());
+        tracing::info!(summary = %summary);
+        tracing::info!(total_steps = self.step_logs.len(), "steps summary");
 
         let success_count = self
             .step_logs
@@ -367,24 +264,27 @@ impl FlowContext {
             .filter(|log| matches!(log.status, StepStatus::Timeout))
             .count();
 
-        println!(
-            "Success: {success_count}, Failed: {failed_count}, Skipped: {skipped_count}, Timeout: {timeout_count}"
+        tracing::info!(
+            success = success_count,
+            failed = failed_count,
+            skipped = skipped_count,
+            timeout = timeout_count
         );
 
         if !self.errors.is_empty() {
-            println!("Errors: {}", self.errors.len());
+            tracing::info!(errors = self.errors.len(), "errors summary");
             for error in &self.errors {
-                println!("  - {error}");
+                tracing::info!(error = %error);
             }
         }
 
         if !self.variables.is_empty() {
-            println!("Variables:");
+            tracing::info!(vars = self.variables.len(), "variables summary");
             for (key, value) in &self.variables {
-                println!("  {key} = {value}");
+                tracing::debug!(key = %key, value = %value);
             }
         }
-        println!("==============================\n");
+        tracing::info!("==============================");
     }
 }
 

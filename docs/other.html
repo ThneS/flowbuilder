@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh">
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<title>流程对比与甘特图整合示例</title>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    margin: 20px;
+    background: #fff;
+    color: #222;
+  }
+  h2 {
+    border-bottom: 2px solid #1890ff;
+    padding-bottom: 6px;
+    margin-top: 40px;
+  }
+  /* 流程对比表 */
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+  }
+  table.compare th, table.compare td {
+    border: 1px solid #ccc;
+    padding: 8px 12px;
+    text-align: center;
+  }
+  table.compare th {
+    background-color: #f0f5ff;
+    color: #096dd9;
+    font-weight: 600;
+  }
+  table.compare tbody tr:nth-child(odd) {
+    background: #fafafa;
+  }
+
+  /* 甘特图表格 */
+  table.gantt {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+    margin-top: 20px;
+  }
+  table.gantt th, table.gantt td {
+    border: 1px solid #ccc;
+    padding: 4px 6px;
+    text-align: center;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  th.process, td.process {
+    width: 80px;
+    font-weight: bold;
+    background: #f0f0f0;
+    color: #333;
+  }
+  th.step, td.step {
+    width: 120px;
+    text-align: left;
+    background: #fafafa;
+    color: #666;
+    padding-left: 4px;
+  }
+  /* 46 分钟列固定宽度，与 index.html 保持一致 */
+  table.gantt colgroup col { width: 20px; }
+  .time-header { background: #e6f7ff; color: #096dd9; font-weight: 700; }
+  td.manual { background-color: #ff4d4f; color: #fff; }
+  td.auto { background-color: #52c41a; color: #fff; }
+  td.wait { background-color: #d9d9d9; color: #333; }
+  td.empty { background: transparent; }
+
+  /* ASCII 代码区样式 */
+  pre.ascii {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 16px;
+    border-radius: 6px;
+    font-family: "Courier New", Courier, monospace;
+    overflow-x: auto;
+    margin-top: 20px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+
+<h1>流程对比与甘特图示例</h1>
+
+<section>
+  <h2>一、流程对比表（手工流程 vs 仿真管理流程）</h2>
+  <table class="compare" aria-label="流程对比表">
+    <thead>
+      <tr>
+        <th>环节</th>
+        <th>手工流程</th>
+        <th>仿真管理流程</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>环境准备</td><td>手动 docker pull、docker run 等</td><td>自动准备环境，启动自动化工厂</td></tr>
+      <tr><td>获取镜像</td><td>手动拉取镜像</td><td>自动拉取最新镜像</td></tr>
+      <tr><td>启动容器</td><td>手动启动并配置容器</td><td>自动启动并配置容器</td></tr>
+      <tr><td>文件部署</td><td>手动 docker cp 拷贝文件</td><td>自动部署动作文件</td></tr>
+      <tr><td>执行仿真</td><td>手动执行 skyeye -a</td><td>自动化工厂调度执行</td></tr>
+      <tr><td>获取结果</td><td>手动查看日志并记录结果</td><td>自动获取并上报结果</td></tr>
+      <tr><td>清理环境</td><td>手动 docker stop & rm</td><td>自动清理容器</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>二、流程步骤对比图（ASCII 格式）</h2>
+  <pre class="ascii" aria-label="流程步骤对比ASCII图">
+手工流程               仿真管理流程
++-----------+          +--------------------------+
+| docker    |          | 配置组网规则和动作文件     |
+| pull/run  |          | 关联组网规则和动作文件     |
++-----------+          +--------------------------+
+     |                        |
++-----------+          +--------------------------+
+| docker cp |          | 启动自动化工厂             |
+| docker exec|         | 自动调度执行测试任务       |
++-----------+          +--------------------------+
+     |                        |
++-----------+          +--------------------------+
+| skyeye -a |          | 自动获取执行结果           |
++-----------+          +--------------------------+
+     |                        |
++-----------+          +--------------------------+
+| 查看日志  |          | 上报结果                   |
++-----------+          +--------------------------+
+     |                        |
++-----------+          +--------------------------+
+| 停止容器  |          | 清理环境                   |
++-----------+          +--------------------------+
+  </pre>
+</section>
+
+<section>
+  <h2>三、甘特图（0–45 分钟严格对齐）</h2>
+  <table class="gantt" aria-label="甘特图时间对齐示范">
+    <!-- 固定列宽：流程列、环节列 + 46 个时间列 -->
+    <colgroup>
+      <col style="width:80px">
+      <col style="width:120px">
+      <!-- 46 分钟列 -->
+      <col span="46">
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="process">流程</th>
+        <th class="step">环节</th>
+        <!-- 0–45 分钟（46 列） -->
+        <th class="time-header">0</th>
+        <th class="time-header">1</th>
+        <th class="time-header">2</th>
+        <th class="time-header">3</th>
+        <th class="time-header">4</th>
+        <th class="time-header">5</th>
+        <th class="time-header">6</th>
+        <th class="time-header">7</th>
+        <th class="time-header">8</th>
+        <th class="time-header">9</th>
+        <th class="time-header">10</th>
+        <th class="time-header">11</th>
+        <th class="time-header">12</th>
+        <th class="time-header">13</th>
+        <th class="time-header">14</th>
+        <th class="time-header">15</th>
+        <th class="time-header">16</th>
+        <th class="time-header">17</th>
+        <th class="time-header">18</th>
+        <th class="time-header">19</th>
+        <th class="time-header">20</th>
+        <th class="time-header">21</th>
+        <th class="time-header">22</th>
+        <th class="time-header">23</th>
+        <th class="time-header">24</th>
+        <th class="time-header">25</th>
+        <th class="time-header">26</th>
+        <th class="time-header">27</th>
+        <th class="time-header">28</th>
+        <th class="time-header">29</th>
+        <th class="time-header">30</th>
+        <th class="time-header">31</th>
+        <th class="time-header">32</th>
+        <th class="time-header">33</th>
+        <th class="time-header">34</th>
+        <th class="time-header">35</th>
+        <th class="time-header">36</th>
+        <th class="time-header">37</th>
+        <th class="time-header">38</th>
+        <th class="time-header">39</th>
+        <th class="time-header">40</th>
+        <th class="time-header">41</th>
+        <th class="time-header">42</th>
+        <th class="time-header">43</th>
+        <th class="time-header">44</th>
+        <th class="time-header">45</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 手工流程 -->
+      <tr>
+        <td class="process" rowspan="7">手工流程</td>
+        <td class="step">环境准备</td>
+        <td class="manual" colspan="5">5</td>
+        <td class="empty" colspan="41"></td>
+      </tr>
+      <tr>
+        <td class="step">获取镜像</td>
+        <td class="wait" colspan="2">2</td>
+        <td class="manual" colspan="10">10</td>
+        <td class="empty" colspan="34"></td>
+      </tr>
+      <tr>
+        <td class="step">启动容器</td>
+        <td class="empty" colspan="12"></td>
+        <td class="manual" colspan="3">3</td>
+        <td class="empty" colspan="31"></td>
+      </tr>
+      <tr>
+        <td class="step">拷贝文件</td>
+        <td class="empty" colspan="15"></td>
+        <td class="manual" colspan="5">5</td>
+        <td class="empty" colspan="26"></td>
+      </tr>
+      <tr>
+        <td class="step">执行测试任务</td>
+        <td class="empty" colspan="20"></td>
+        <td class="manual" colspan="15">15</td>
+        <td class="empty" colspan="11"></td>
+      </tr>
+      <tr>
+        <td class="step">获取执行结果</td>
+        <td class="empty" colspan="35"></td>
+        <td class="manual" colspan="5">5</td>
+        <td class="empty" colspan="6"></td>
+      </tr>
+      <tr>
+        <td class="step">清理环境</td>
+        <td class="empty" colspan="40"></td>
+        <td class="manual" colspan="2">2</td>
+        <td class="empty" colspan="4"></td>
+      </tr>
+
+      <!-- 仿真管理流程 -->
+      <tr>
+        <td class="process" rowspan="7">仿真管理流程</td>
+        <td class="step">环境准备</td>
+        <td class="auto" colspan="2">2</td>
+        <td class="empty" colspan="44"></td>
+      </tr>
+      <tr>
+        <td class="step">获取镜像</td>
+        <td class="wait" colspan="1">1</td>
+        <td class="auto" colspan="3">3</td>
+        <td class="empty" colspan="42"></td>
+      </tr>
+      <tr>
+        <td class="step">启动容器</td>
+        <td class="empty" colspan="4"></td>
+        <td class="auto" colspan="1">1</td>
+        <td class="empty" colspan="41"></td>
+      </tr>
+      <tr>
+        <td class="step">文件部署</td>
+        <td class="empty" colspan="5"></td>
+        <td class="auto" colspan="1">1</td>
+        <td class="empty" colspan="40"></td>
+      </tr>
+      <tr>
+        <td class="step">执行测试任务</td>
+        <td class="empty" colspan="6"></td>
+        <td class="auto" colspan="15">15</td>
+        <td class="empty" colspan="25"></td>
+      </tr>
+      <tr>
+        <td class="step">获取执行结果</td>
+        <td class="empty" colspan="21"></td>
+        <td class="auto" colspan="1">1</td>
+        <td class="empty" colspan="24"></td>
+      </tr>
+      <tr>
+        <td class="step">清理环境</td>
+        <td class="empty" colspan="22"></td>
+        <td class="auto" colspan="1">1</td>
+        <td class="empty" colspan="23"></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+</body>
+</html>

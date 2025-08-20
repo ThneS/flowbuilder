@@ -8,6 +8,7 @@ use flowbuilder_core::{
     PhaseExecutionMode,
 };
 use std::collections::HashMap;
+use tracing::info;
 
 /// 增强的流程编排器
 pub struct EnhancedFlowOrchestrator {
@@ -59,6 +60,7 @@ impl EnhancedFlowOrchestrator {
     }
 
     /// 从节点列表创建执行计划
+    #[tracing::instrument(level = "info", skip(self, env_vars, flow_vars), fields(workflow = %workflow_name, version = %workflow_version, nodes = nodes.len()))]
     pub fn create_execution_plan(
         &self,
         nodes: Vec<ExecutionNode>,
@@ -101,6 +103,7 @@ impl EnhancedFlowOrchestrator {
     }
 
     /// 构建依赖图
+    #[tracing::instrument(level = "debug", skip(self, nodes), fields(nodes = nodes.len()))]
     fn build_dependency_graph(
         &self,
         nodes: &[ExecutionNode],
@@ -128,6 +131,7 @@ impl EnhancedFlowOrchestrator {
     }
 
     /// 拓扑排序，生成执行层次
+    #[tracing::instrument(level = "debug", skip(self, nodes, _graph), fields(nodes = nodes.len()))]
     fn topological_sort(
         &self,
         nodes: &[ExecutionNode],
@@ -185,6 +189,7 @@ impl EnhancedFlowOrchestrator {
     }
 
     /// 创建执行阶段
+    #[tracing::instrument(level = "debug", skip(self, layers), fields(layers = layers.len()))]
     fn create_execution_phases(
         &self,
         layers: Vec<Vec<ExecutionNode>>,
@@ -216,6 +221,7 @@ impl EnhancedFlowOrchestrator {
     }
 
     /// 优化并行执行
+    #[tracing::instrument(level = "debug", skip(self, plan), fields(phases = plan.phases.len()))]
     fn optimize_for_parallelism(&self, plan: &mut ExecutionPlan) -> Result<()> {
         if !self.config.enable_parallel_optimization {
             return Ok(());
@@ -246,11 +252,7 @@ impl EnhancedFlowOrchestrator {
 
                 // 注意：这里需要重新构建计划结构来支持子阶段
                 // 为了简化，这里只是记录优化信息
-                println!(
-                    "阶段 {} 被优化为 {} 个子阶段",
-                    phase.name,
-                    sub_phases.len()
-                );
+                info!(phase = %phase.name, sub_phases = sub_phases.len(), "阶段被优化为子阶段");
             }
         }
 
@@ -258,6 +260,7 @@ impl EnhancedFlowOrchestrator {
     }
 
     /// 分析执行计划的复杂度
+    #[tracing::instrument(level = "debug", skip(self, plan), fields(phases = plan.phases.len(), nodes = plan.metadata.total_nodes))]
     pub fn analyze_complexity(
         &self,
         plan: &ExecutionPlan,
