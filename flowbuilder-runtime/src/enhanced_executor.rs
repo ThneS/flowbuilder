@@ -465,8 +465,8 @@ impl EnhancedTaskExecutor {
         }
     }
 
-    /// 根据动作类型执行动作
-    fn execute_action_by_type(
+    /// 根据动作类型执行动作 (Public for demo purposes)
+    pub fn execute_action_by_type(
         action_spec: &ActionSpec,
         context: SharedContext,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + '_>> {

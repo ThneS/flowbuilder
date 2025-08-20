@@ -23,6 +23,7 @@ anyhow = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+serde_yaml = { workspace = true }
 
 [features]
 # 默认启用核心 + YAML(含运行时) 方便示例直接编译
@@ -42,3 +43,8 @@ detailed-logging = ["runtime", "flowbuilder-runtime/detailed-logging"]
 name = "new_architecture_demo"
 path = "examples/new_architecture_demo.rs"
 required-features = ["yaml-runtime"]
+
+[[example]]
+name = "action_demo"
+path = "examples/action_demo.rs"
+required-features = ["runtime"]
