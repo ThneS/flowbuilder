@@ -515,4 +515,91 @@ workflow:
         assert_eq!(info.env_var_count, 2);
         assert_eq!(info.flow_var_count, 2);
     }
+
+    #[cfg(feature = "runtime")]
+    #[tokio::test]
+    async fn test_execution_plan_dependency_phases() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  env: {}
+  vars:
+    name: "Execution Plan Test"
+  tasks:
+    - task:
+        id: "setup_task"
+        name: "Setup Task"
+        description: "First task in the chain"
+        actions:
+          - action:
+              id: "setup_action"
+              name: "Setup Action"
+              description: "Setup action"
+              type: "builtin"
+              flow:
+                next: "notification_task"
+              outputs: {}
+              parameters: {}
+    - task:
+        id: "notification_task"
+        name: "Notification Task"
+        description: "Second task in the chain"
+        actions:
+          - action:
+              id: "notification_action"
+              name: "Notification Action"
+              description: "Notification action"
+              type: "builtin"
+              flow:
+                next: "process_task"
+              outputs: {}
+              parameters: {}
+    - task:
+        id: "process_task"
+        name: "Process Task"
+        description: "Third task in the chain"
+        actions:
+          - action:
+              id: "process_action"
+              name: "Process Action"
+              description: "Process action"
+              type: "builtin"
+              flow:
+                next: null
+              outputs: {}
+              parameters: {}
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let executor = DynamicFlowExecutor::new(config).unwrap();
+
+        // Create execution plan
+        let plan = executor.get_execution_plan_preview().unwrap();
+
+        // Verify the execution plan has correct number of phases
+        // Each task should be in its own phase due to dependencies
+        assert_eq!(plan.phases.len(), 3, "Should have 3 phases for dependent tasks");
+
+        // Verify the order of tasks in phases
+        // Phase 0: setup_task (no dependencies)
+        // Phase 1: notification_task (depends on setup_task)
+        // Phase 2: process_task (depends on notification_task)
+        
+        assert_eq!(plan.phases[0].nodes.len(), 1, "Phase 0 should have 1 node");
+        assert_eq!(plan.phases[0].nodes[0].id, "setup_task", "Phase 0 should contain setup_task");
+        
+        assert_eq!(plan.phases[1].nodes.len(), 1, "Phase 1 should have 1 node");
+        assert_eq!(plan.phases[1].nodes[0].id, "notification_task", "Phase 1 should contain notification_task");
+        
+        assert_eq!(plan.phases[2].nodes.len(), 1, "Phase 2 should have 1 node");
+        assert_eq!(plan.phases[2].nodes[0].id, "process_task", "Phase 2 should contain process_task");
+
+        // Verify dependencies are correctly set
+        assert_eq!(plan.phases[0].nodes[0].dependencies, Vec::<String>::new(), 
+                  "setup_task should have no dependencies");
+        assert_eq!(plan.phases[1].nodes[0].dependencies, vec!["setup_task"], 
+                  "notification_task should depend on setup_task");
+        assert_eq!(plan.phases[2].nodes[0].dependencies, vec!["notification_task"], 
+                  "process_task should depend on notification_task");
+    }
 }

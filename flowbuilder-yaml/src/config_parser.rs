@@ -155,22 +155,34 @@ impl YamlConfigParser {
     }
 
     /// 提取任务依赖关系
+    /// 
+    /// 新语义：当 A.next = B 时，意味着 B 依赖于 A（即 A 执行完后执行 B）
+    /// 因此需要查找所有指向当前任务的其他任务，将它们作为当前任务的依赖
     fn extract_dependencies(
         &self,
         task: &TaskDefinition,
     ) -> Result<Vec<String>> {
         let mut deps = Vec::new();
 
-        // 从动作中提取依赖
-        for action_wrapper in &task.actions {
-            let action = &action_wrapper.action;
+        // 遍历所有任务，查找哪些任务的 flow.next 指向当前任务
+        for task_wrapper in &self.config.workflow.tasks {
+            let other_task = &task_wrapper.task;
+            
+            // 跳过当前任务自身
+            if other_task.id == task.id {
+                continue;
+            }
 
-            // 如果动作有next字段，可能表示依赖关系
-            if let Some(next) = &action.flow.next {
-                if next != "null" {
-                    // 这里需要根据实际的依赖逻辑来处理
-                    // 简化处理：假设next指向的是依赖的任务
-                    deps.push(next.clone());
+            // 检查该任务的所有动作是否有 next 指向当前任务
+            for action_wrapper in &other_task.actions {
+                let action = &action_wrapper.action;
+
+                if let Some(next) = &action.flow.next {
+                    if next == &task.id {
+                        // 找到指向当前任务的任务，将其作为依赖
+                        deps.push(other_task.id.clone());
+                        break; // 每个任务最多添加一次依赖
+                    }
                 }
             }
         }
@@ -474,5 +486,84 @@ workflow:
         assert_eq!(result.workflow_version, "1.0");
         assert!(result.env_vars.contains_key("TEST_ENV"));
         assert!(result.flow_vars.contains_key("name"));
+    }
+
+    #[test]
+    fn test_dependency_chain_semantics() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  env: {}
+  vars:
+    name: "Dependency Chain Test"
+  tasks:
+    - task:
+        id: "setup_task"
+        name: "Setup Task"
+        description: "First task in the chain"
+        actions:
+          - action:
+              id: "setup_action"
+              name: "Setup Action"
+              description: "Setup action"
+              type: "builtin"
+              flow:
+                next: "notification_task"
+              outputs: {}
+              parameters: {}
+    - task:
+        id: "notification_task"
+        name: "Notification Task"
+        description: "Second task in the chain"
+        actions:
+          - action:
+              id: "notification_action"
+              name: "Notification Action"
+              description: "Notification action"
+              type: "builtin"
+              flow:
+                next: "process_task"
+              outputs: {}
+              parameters: {}
+    - task:
+        id: "process_task"
+        name: "Process Task"
+        description: "Third task in the chain"
+        actions:
+          - action:
+              id: "process_action"
+              name: "Process Action"
+              description: "Process action"
+              type: "builtin"
+              flow:
+                next: null
+              outputs: {}
+              parameters: {}
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let parser = YamlConfigParser::new(config);
+        let nodes = parser.parse().unwrap();
+
+        assert_eq!(nodes.len(), 3);
+
+        // Find each node by id
+        let setup_node = nodes.iter().find(|n| n.id == "setup_task").unwrap();
+        let notification_node = nodes.iter().find(|n| n.id == "notification_task").unwrap();
+        let process_node = nodes.iter().find(|n| n.id == "process_task").unwrap();
+
+        // Test correct dependency semantics:
+        // setup_task.next -> notification_task.next -> process_task.next -> null
+        // Should result in:
+        // - setup_task has deps: []
+        // - notification_task has deps: [setup_task]  
+        // - process_task has deps: [notification_task]
+
+        assert_eq!(setup_node.dependencies, Vec::<String>::new(), 
+                  "setup_task should have no dependencies");
+        assert_eq!(notification_node.dependencies, vec!["setup_task"], 
+                  "notification_task should depend on setup_task");
+        assert_eq!(process_node.dependencies, vec!["notification_task"], 
+                  "process_task should depend on notification_task");
     }
 }
