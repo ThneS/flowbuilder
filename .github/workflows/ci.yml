@@ -86,10 +86,20 @@ jobs:
       - name: Smoke Test (${{ matrix.name }})
         if: contains(matrix.name, 'full') || matrix.name == 'runtime-parallel-retry'
         run: |
-          if [ "${{ matrix.default_features }}" = 'false' ]; then
-            cargo test -p flowbuilder-runtime --no-default-features --features "${{ matrix.features }}" -- --test-threads=1
+          if [[ "${{ matrix.features }}" == *"yaml"* ]]; then
+            # Test main flowbuilder package for configs with yaml feature
+            if [ "${{ matrix.default_features }}" = 'false' ]; then
+              cargo test -p flowbuilder --no-default-features --features "${{ matrix.features }}" -- --test-threads=1
+            else
+              cargo test -p flowbuilder --features "${{ matrix.features }}" -- --test-threads=1
+            fi
           else
-            cargo test -p flowbuilder-runtime --features "${{ matrix.features }}" -- --test-threads=1
+            # Test flowbuilder-runtime package for configs without yaml feature
+            if [ "${{ matrix.default_features }}" = 'false' ]; then
+              cargo test -p flowbuilder-runtime --no-default-features --features "${{ matrix.features }}" -- --test-threads=1
+            else
+              cargo test -p flowbuilder-runtime --features "${{ matrix.features }}" -- --test-threads=1
+            fi
           fi
   test:
     name: 测试

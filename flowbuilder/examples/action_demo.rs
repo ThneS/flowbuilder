@@ -23,15 +23,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         action_type: "builtin".to_string(),
         parameters: {
             let mut params = HashMap::new();
-            params.insert("operation".to_string(), serde_yaml::Value::String("set_variable".to_string()));
-            params.insert("key".to_string(), serde_yaml::Value::String("demo_var".to_string()));
-            params.insert("value".to_string(), serde_yaml::Value::String("Hello FlowBuilder!".to_string()));
+            params.insert(
+                "operation".to_string(),
+                serde_yaml::Value::String("set_variable".to_string()),
+            );
+            params.insert(
+                "key".to_string(),
+                serde_yaml::Value::String("demo_var".to_string()),
+            );
+            params.insert(
+                "value".to_string(),
+                serde_yaml::Value::String("Hello FlowBuilder!".to_string()),
+            );
             params
         },
         outputs: HashMap::new(),
     };
 
-    match EnhancedTaskExecutor::execute_action_by_type(&set_var_action, context.clone()).await {
+    match EnhancedTaskExecutor::execute_action_by_type(
+        &set_var_action,
+        context.clone(),
+    )
+    .await
+    {
         Ok(_) => println!("✅ Variable set successfully"),
         Err(e) => println!("❌ Error: {}", e),
     }
@@ -42,15 +56,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         action_type: "builtin".to_string(),
         parameters: {
             let mut params = HashMap::new();
-            params.insert("operation".to_string(), serde_yaml::Value::String("log".to_string()));
-            params.insert("message".to_string(), serde_yaml::Value::String("This is a demo log message".to_string()));
-            params.insert("level".to_string(), serde_yaml::Value::String("info".to_string()));
+            params.insert(
+                "operation".to_string(),
+                serde_yaml::Value::String("log".to_string()),
+            );
+            params.insert(
+                "message".to_string(),
+                serde_yaml::Value::String(
+                    "This is a demo log message".to_string(),
+                ),
+            );
+            params.insert(
+                "level".to_string(),
+                serde_yaml::Value::String("info".to_string()),
+            );
             params
         },
         outputs: HashMap::new(),
     };
 
-    match EnhancedTaskExecutor::execute_action_by_type(&log_action, context.clone()).await {
+    match EnhancedTaskExecutor::execute_action_by_type(
+        &log_action,
+        context.clone(),
+    )
+    .await
+    {
         Ok(_) => println!("✅ Log message sent successfully"),
         Err(e) => println!("❌ Error: {}", e),
     }
@@ -61,23 +91,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         action_type: "cmd".to_string(),
         parameters: {
             let mut params = HashMap::new();
-            params.insert("command".to_string(), serde_yaml::Value::String("echo".to_string()));
-            params.insert("args".to_string(), serde_yaml::Value::Sequence(vec![
-                serde_yaml::Value::String("Hello from command execution!".to_string())
-            ]));
+            params.insert(
+                "command".to_string(),
+                serde_yaml::Value::String("echo".to_string()),
+            );
+            params.insert(
+                "args".to_string(),
+                serde_yaml::Value::Sequence(vec![serde_yaml::Value::String(
+                    "Hello from command execution!".to_string(),
+                )]),
+            );
             params
         },
         outputs: HashMap::new(),
     };
 
-    match EnhancedTaskExecutor::execute_action_by_type(&cmd_action, context.clone()).await {
+    match EnhancedTaskExecutor::execute_action_by_type(
+        &cmd_action,
+        context.clone(),
+    )
+    .await
+    {
         Ok(_) => {
             println!("✅ Command executed successfully");
             let guard = context.lock().await;
             if let Some(stdout) = guard.variables.get("cmd_stdout") {
                 println!("📤 Command output: {}", stdout);
             }
-        },
+        }
         Err(e) => println!("❌ Error: {}", e),
     }
 
@@ -87,14 +128,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         action_type: "wasm".to_string(),
         parameters: {
             let mut params = HashMap::new();
-            params.insert("module".to_string(), serde_yaml::Value::String("demo.wasm".to_string()));
-            params.insert("function".to_string(), serde_yaml::Value::String("demo_function".to_string()));
+            params.insert(
+                "module".to_string(),
+                serde_yaml::Value::String("demo.wasm".to_string()),
+            );
+            params.insert(
+                "function".to_string(),
+                serde_yaml::Value::String("demo_function".to_string()),
+            );
             params
         },
         outputs: HashMap::new(),
     };
 
-    match EnhancedTaskExecutor::execute_action_by_type(&wasm_action, context.clone()).await {
+    match EnhancedTaskExecutor::execute_action_by_type(
+        &wasm_action,
+        context.clone(),
+    )
+    .await
+    {
         Ok(_) => println!("✅ WASM action executed successfully (simulated)"),
         Err(e) => println!("❌ Error: {}", e),
     }
@@ -105,32 +157,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         action_type: "composite".to_string(),
         parameters: {
             let mut params = HashMap::new();
-            
+
             let sub_actions = vec![
                 serde_yaml::Value::Mapping({
                     let mut map = serde_yaml::mapping::Mapping::new();
                     map.insert(
                         serde_yaml::Value::String("type".to_string()),
-                        serde_yaml::Value::String("builtin".to_string())
+                        serde_yaml::Value::String("builtin".to_string()),
                     );
                     map.insert(
                         serde_yaml::Value::String("parameters".to_string()),
                         serde_yaml::Value::Mapping({
-                            let mut param_map = serde_yaml::mapping::Mapping::new();
+                            let mut param_map =
+                                serde_yaml::mapping::Mapping::new();
                             param_map.insert(
-                                serde_yaml::Value::String("operation".to_string()),
-                                serde_yaml::Value::String("log".to_string())
+                                serde_yaml::Value::String(
+                                    "operation".to_string(),
+                                ),
+                                serde_yaml::Value::String("log".to_string()),
                             );
                             param_map.insert(
-                                serde_yaml::Value::String("message".to_string()),
-                                serde_yaml::Value::String("Step 1 of composite action".to_string())
+                                serde_yaml::Value::String(
+                                    "message".to_string(),
+                                ),
+                                serde_yaml::Value::String(
+                                    "Step 1 of composite action".to_string(),
+                                ),
                             );
                             param_map
-                        })
+                        }),
                     );
                     map.insert(
                         serde_yaml::Value::String("outputs".to_string()),
-                        serde_yaml::Value::Mapping(serde_yaml::mapping::Mapping::new())
+                        serde_yaml::Value::Mapping(
+                            serde_yaml::mapping::Mapping::new(),
+                        ),
                     );
                     map
                 }),
@@ -138,38 +199,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let mut map = serde_yaml::mapping::Mapping::new();
                     map.insert(
                         serde_yaml::Value::String("type".to_string()),
-                        serde_yaml::Value::String("builtin".to_string())
+                        serde_yaml::Value::String("builtin".to_string()),
                     );
                     map.insert(
                         serde_yaml::Value::String("parameters".to_string()),
                         serde_yaml::Value::Mapping({
-                            let mut param_map = serde_yaml::mapping::Mapping::new();
+                            let mut param_map =
+                                serde_yaml::mapping::Mapping::new();
                             param_map.insert(
-                                serde_yaml::Value::String("operation".to_string()),
-                                serde_yaml::Value::String("sleep".to_string())
+                                serde_yaml::Value::String(
+                                    "operation".to_string(),
+                                ),
+                                serde_yaml::Value::String("sleep".to_string()),
                             );
                             param_map.insert(
-                                serde_yaml::Value::String("duration".to_string()),
-                                serde_yaml::Value::Number(100.into())
+                                serde_yaml::Value::String(
+                                    "duration".to_string(),
+                                ),
+                                serde_yaml::Value::Number(100.into()),
                             );
                             param_map
-                        })
+                        }),
                     );
                     map.insert(
                         serde_yaml::Value::String("outputs".to_string()),
-                        serde_yaml::Value::Mapping(serde_yaml::mapping::Mapping::new())
+                        serde_yaml::Value::Mapping(
+                            serde_yaml::mapping::Mapping::new(),
+                        ),
                     );
                     map
-                })
+                }),
             ];
 
-            params.insert("actions".to_string(), serde_yaml::Value::Sequence(sub_actions));
+            params.insert(
+                "actions".to_string(),
+                serde_yaml::Value::Sequence(sub_actions),
+            );
             params
         },
         outputs: HashMap::new(),
     };
 
-    match EnhancedTaskExecutor::execute_action_by_type(&composite_action, context.clone()).await {
+    match EnhancedTaskExecutor::execute_action_by_type(
+        &composite_action,
+        context.clone(),
+    )
+    .await
+    {
         Ok(_) => println!("✅ Composite action executed successfully"),
         Err(e) => println!("❌ Error: {}", e),
     }

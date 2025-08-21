@@ -22,6 +22,7 @@ pub struct EnhancedTaskExecutor {
     /// 并发控制信号量
     semaphore: Arc<Semaphore>,
     /// 执行统计（可选）
+    #[allow(dead_code)]
     stats: ExecutionStats,
 }
 
@@ -45,6 +46,7 @@ impl Default for ExecutorConfig {
 
 /// 执行统计
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct ExecutionStats {
     /// 总任务数
     pub total_tasks: usize,
@@ -469,29 +471,25 @@ impl EnhancedTaskExecutor {
     pub fn execute_action_by_type(
         action_spec: &ActionSpec,
         context: SharedContext,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + '_>> {
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<()>> + Send + '_>,
+    > {
         Box::pin(async move {
             match action_spec.action_type.as_str() {
                 "builtin" => {
                     Self::execute_builtin_action(action_spec, context).await
                 }
-                "cmd" => {
-                    Self::execute_cmd_action(action_spec, context).await
-                }
-                "http" => {
-                    Self::execute_http_action(action_spec, context).await
-                }
-                "wasm" => {
-                    Self::execute_wasm_action(action_spec, context).await
-                }
+                "cmd" => Self::execute_cmd_action(action_spec, context).await,
+                "http" => Self::execute_http_action(action_spec, context).await,
+                "wasm" => Self::execute_wasm_action(action_spec, context).await,
                 "composite" => {
                     Self::execute_composite_action(action_spec, context).await
                 }
                 _ => {
-                    return Err(anyhow::anyhow!(
+                    Err(anyhow::anyhow!(
                         "不支持的动作类型: {}",
                         action_spec.action_type
-                    ));
+                    ))
                 }
             }
         })
@@ -503,7 +501,7 @@ impl EnhancedTaskExecutor {
         context: SharedContext,
     ) -> Result<()> {
         tracing::debug!("执行内置动作");
-        
+
         // 获取操作类型参数
         let operation = action_spec
             .parameters
@@ -517,13 +515,15 @@ impl EnhancedTaskExecutor {
                     .parameters
                     .get("key")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| anyhow::anyhow!("set_variable 操作缺少 'key' 参数"))?;
-                
-                let value = action_spec
-                    .parameters
-                    .get("value")
-                    .ok_or_else(|| anyhow::anyhow!("set_variable 操作缺少 'value' 参数"))?;
-                
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("set_variable 操作缺少 'key' 参数")
+                    })?;
+
+                let value =
+                    action_spec.parameters.get("value").ok_or_else(|| {
+                        anyhow::anyhow!("set_variable 操作缺少 'value' 参数")
+                    })?;
+
                 let mut guard = context.lock().await;
                 guard.set_variable(key.to_string(), format!("{value:?}"));
                 tracing::debug!("设置变量: {} = {:?}", key, value);
@@ -533,8 +533,10 @@ impl EnhancedTaskExecutor {
                     .parameters
                     .get("key")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| anyhow::anyhow!("get_variable 操作缺少 'key' 参数"))?;
-                
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("get_variable 操作缺少 'key' 参数")
+                    })?;
+
                 let guard = context.lock().await;
                 if let Some(value) = guard.variables.get(key) {
                     tracing::debug!("获取变量: {} = {}", key, value);
@@ -543,17 +545,17 @@ impl EnhancedTaskExecutor {
                 }
             }
             "log" => {
-                let message = action_spec
-                    .parameters
-                    .get("message")
-                    .ok_or_else(|| anyhow::anyhow!("log 操作缺少 'message' 参数"))?;
-                
+                let message =
+                    action_spec.parameters.get("message").ok_or_else(|| {
+                        anyhow::anyhow!("log 操作缺少 'message' 参数")
+                    })?;
+
                 let level = action_spec
                     .parameters
                     .get("level")
                     .and_then(|v| v.as_str())
                     .unwrap_or("info");
-                
+
                 match level {
                     "debug" => tracing::debug!("内置日志: {:?}", message),
                     "info" => tracing::info!("内置日志: {:?}", message),
@@ -567,8 +569,10 @@ impl EnhancedTaskExecutor {
                     .parameters
                     .get("duration")
                     .and_then(|v| v.as_u64())
-                    .ok_or_else(|| anyhow::anyhow!("sleep 操作缺少有效的 'duration' 参数"))?;
-                
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("sleep 操作缺少有效的 'duration' 参数")
+                    })?;
+
                 tracing::debug!("睡眠 {} 毫秒", duration);
                 tokio::time::sleep(Duration::from_millis(duration)).await;
             }
@@ -592,7 +596,7 @@ impl EnhancedTaskExecutor {
         context: SharedContext,
     ) -> Result<()> {
         tracing::debug!("执行命令动作");
-        
+
         let command = action_spec
             .parameters
             .get("command")
@@ -620,7 +624,7 @@ impl EnhancedTaskExecutor {
 
         let mut cmd = tokio::process::Command::new(command);
         cmd.args(&args);
-        
+
         if let Some(dir) = working_dir {
             cmd.current_dir(dir);
         }
@@ -636,16 +640,17 @@ impl EnhancedTaskExecutor {
             }
         }
 
-        let output = cmd.output().await.map_err(|e| {
-            anyhow::anyhow!("执行命令失败: {}", e)
-        })?;
+        let output = cmd
+            .output()
+            .await
+            .map_err(|e| anyhow::anyhow!("执行命令失败: {}", e))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         let exit_code = output.status.code().unwrap_or(-1);
 
         tracing::debug!("命令执行完成，退出码: {}", exit_code);
-        
+
         if !output.status.success() {
             return Err(anyhow::anyhow!(
                 "命令执行失败，退出码: {}，错误输出: {}",
@@ -659,7 +664,10 @@ impl EnhancedTaskExecutor {
             let mut guard = context.lock().await;
             guard.set_variable("cmd_stdout".to_string(), stdout.to_string());
             guard.set_variable("cmd_stderr".to_string(), stderr.to_string());
-            guard.set_variable("cmd_exit_code".to_string(), exit_code.to_string());
+            guard.set_variable(
+                "cmd_exit_code".to_string(),
+                exit_code.to_string(),
+            );
         }
 
         // 存储输出到上下文
@@ -672,6 +680,7 @@ impl EnhancedTaskExecutor {
     }
 
     /// 执行HTTP动作
+    #[allow(unused_variables)]
     async fn execute_http_action(
         action_spec: &ActionSpec,
         context: SharedContext,
@@ -686,7 +695,7 @@ impl EnhancedTaskExecutor {
         #[cfg(feature = "http")]
         {
             tracing::debug!("执行HTTP动作");
-            
+
             let url = action_spec
                 .parameters
                 .get("url")
@@ -706,14 +715,18 @@ impl EnhancedTaskExecutor {
                 "PUT" => client.put(url),
                 "DELETE" => client.delete(url),
                 "PATCH" => client.patch(url),
-                _ => return Err(anyhow::anyhow!("不支持的HTTP方法: {}", method)),
+                _ => {
+                    return Err(anyhow::anyhow!("不支持的HTTP方法: {}", method))
+                }
             };
 
             // 添加请求头
             if let Some(headers) = action_spec.parameters.get("headers") {
                 if let Some(headers_map) = headers.as_mapping() {
                     for (key, value) in headers_map {
-                        if let (Some(k), Some(v)) = (key.as_str(), value.as_str()) {
+                        if let (Some(k), Some(v)) =
+                            (key.as_str(), value.as_str())
+                        {
                             request = request.header(k, v);
                         }
                     }
@@ -730,46 +743,63 @@ impl EnhancedTaskExecutor {
 
                 match content_type {
                     "application/json" => {
-                        let json_body = serde_json::to_string(body)
-                            .map_err(|e| anyhow::anyhow!("序列化JSON失败: {}", e))?;
-                        request = request.header("Content-Type", "application/json").body(json_body);
+                        let json_body =
+                            serde_json::to_string(body).map_err(|e| {
+                                anyhow::anyhow!("序列化JSON失败: {}", e)
+                            })?;
+                        request = request
+                            .header("Content-Type", "application/json")
+                            .body(json_body);
                     }
                     "text/plain" => {
                         let text_body = body.as_str().unwrap_or("");
-                        request = request.header("Content-Type", "text/plain").body(text_body.to_string());
+                        request = request
+                            .header("Content-Type", "text/plain")
+                            .body(text_body.to_string());
                     }
                     _ => {
-                        return Err(anyhow::anyhow!("不支持的Content-Type: {}", content_type));
+                        return Err(anyhow::anyhow!(
+                            "不支持的Content-Type: {}",
+                            content_type
+                        ));
                     }
                 }
             }
 
             tracing::debug!("发送HTTP请求: {} {}", method, url);
-            
-            let response = request.send().await.map_err(|e| {
-                anyhow::anyhow!("HTTP请求失败: {}", e)
-            })?;
+
+            let response = request
+                .send()
+                .await
+                .map_err(|e| anyhow::anyhow!("HTTP请求失败: {}", e))?;
 
             let status_code = response.status().as_u16();
             let response_headers = response.headers().clone();
-            let response_text = response.text().await.map_err(|e| {
-                anyhow::anyhow!("读取响应体失败: {}", e)
-            })?;
+            let response_text = response
+                .text()
+                .await
+                .map_err(|e| anyhow::anyhow!("读取响应体失败: {}", e))?;
 
             tracing::debug!("HTTP响应状态码: {}", status_code);
 
             // 将响应存储到上下文
             {
                 let mut guard = context.lock().await;
-                guard.set_variable("http_status_code".to_string(), status_code.to_string());
-                guard.set_variable("http_response_body".to_string(), response_text.clone());
-                
+                guard.set_variable(
+                    "http_status_code".to_string(),
+                    status_code.to_string(),
+                );
+                guard.set_variable(
+                    "http_response_body".to_string(),
+                    response_text.clone(),
+                );
+
                 // 存储响应头
                 for (name, value) in response_headers.iter() {
                     if let Ok(value_str) = value.to_str() {
                         guard.set_variable(
                             format!("http_header_{}", name.as_str()),
-                            value_str.to_string()
+                            value_str.to_string(),
                         );
                     }
                 }
@@ -803,15 +833,15 @@ impl EnhancedTaskExecutor {
         context: SharedContext,
     ) -> Result<()> {
         tracing::debug!("执行WASM动作");
-        
+
         // TODO: 实现真正的WASM执行
         // 这里暂时保持原有的模拟行为，但添加参数处理
-        
+
         let _module_path = action_spec
             .parameters
             .get("module")
             .and_then(|v| v.as_str());
-            
+
         let _function_name = action_spec
             .parameters
             .get("function")
@@ -820,7 +850,7 @@ impl EnhancedTaskExecutor {
 
         // 模拟WASM执行
         tokio::time::sleep(Duration::from_millis(150)).await;
-        
+
         tracing::debug!("WASM模块执行完成");
 
         // 存储输出到上下文
@@ -838,7 +868,7 @@ impl EnhancedTaskExecutor {
         context: SharedContext,
     ) -> Result<()> {
         tracing::debug!("执行复合动作");
-        
+
         // 复合动作按顺序执行所有子动作
         let actions = action_spec
             .parameters
@@ -849,20 +879,40 @@ impl EnhancedTaskExecutor {
         for (index, action_value) in actions.iter().enumerate() {
             if let Some(action_map) = action_value.as_mapping() {
                 let action_type = action_map
-                    .get(&serde_yaml::Value::String("type".to_string()))
+                    .get(serde_yaml::Value::String("type".to_string()))
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| anyhow::anyhow!("子动作 {} 缺少 'type' 参数", index))?;
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("子动作 {} 缺少 'type' 参数", index)
+                    })?;
 
                 let parameters = action_map
-                    .get(&serde_yaml::Value::String("parameters".to_string()))
+                    .get(serde_yaml::Value::String("parameters".to_string()))
                     .and_then(|v| v.as_mapping())
-                    .map(|m| m.iter().map(|(k, v)| (k.as_str().unwrap_or("").to_string(), v.clone())).collect())
+                    .map(|m| {
+                        m.iter()
+                            .map(|(k, v)| {
+                                (
+                                    k.as_str().unwrap_or("").to_string(),
+                                    v.clone(),
+                                )
+                            })
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 let outputs = action_map
-                    .get(&serde_yaml::Value::String("outputs".to_string()))
+                    .get(serde_yaml::Value::String("outputs".to_string()))
                     .and_then(|v| v.as_mapping())
-                    .map(|m| m.iter().map(|(k, v)| (k.as_str().unwrap_or("").to_string(), v.clone())).collect())
+                    .map(|m| {
+                        m.iter()
+                            .map(|(k, v)| {
+                                (
+                                    k.as_str().unwrap_or("").to_string(),
+                                    v.clone(),
+                                )
+                            })
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 let sub_action_spec = ActionSpec {
@@ -872,7 +922,8 @@ impl EnhancedTaskExecutor {
                 };
 
                 tracing::debug!("执行子动作 {}: {}", index, action_type);
-                Self::execute_action_by_type(&sub_action_spec, context.clone()).await?;
+                Self::execute_action_by_type(&sub_action_spec, context.clone())
+                    .await?;
             }
         }
 
@@ -1042,8 +1093,14 @@ mod tests {
         ));
 
         let mut parameters = HashMap::new();
-        parameters.insert("operation".to_string(), serde_yaml::Value::String("log".to_string()));
-        parameters.insert("message".to_string(), serde_yaml::Value::String("test message".to_string()));
+        parameters.insert(
+            "operation".to_string(),
+            serde_yaml::Value::String("log".to_string()),
+        );
+        parameters.insert(
+            "message".to_string(),
+            serde_yaml::Value::String("test message".to_string()),
+        );
 
         let node = ExecutionNode::new(
             "test_node".to_string(),
@@ -1071,9 +1128,18 @@ mod tests {
             action_type: "builtin".to_string(),
             parameters: {
                 let mut params = HashMap::new();
-                params.insert("operation".to_string(), serde_yaml::Value::String("set_variable".to_string()));
-                params.insert("key".to_string(), serde_yaml::Value::String("test_key".to_string()));
-                params.insert("value".to_string(), serde_yaml::Value::String("test_value".to_string()));
+                params.insert(
+                    "operation".to_string(),
+                    serde_yaml::Value::String("set_variable".to_string()),
+                );
+                params.insert(
+                    "key".to_string(),
+                    serde_yaml::Value::String("test_key".to_string()),
+                );
+                params.insert(
+                    "value".to_string(),
+                    serde_yaml::Value::String("test_value".to_string()),
+                );
                 params
             },
             outputs: HashMap::new(),
@@ -1083,14 +1149,18 @@ mod tests {
             flowbuilder_context::FlowContext::default(),
         ));
 
-        let result = EnhancedTaskExecutor::execute_builtin_action(&action_spec, context.clone()).await;
+        let result = EnhancedTaskExecutor::execute_builtin_action(
+            &action_spec,
+            context.clone(),
+        )
+        .await;
         assert!(result.is_ok());
 
         // Verify variable was set
         let guard = context.lock().await;
         assert!(guard.variables.contains_key("test_key"));
         let stored_value = guard.variables.get("test_key").unwrap();
-        assert!(stored_value.contains("test_value"));  // Just check it contains the value
+        assert!(stored_value.contains("test_value")); // Just check it contains the value
     }
 
     #[tokio::test]
@@ -1099,8 +1169,14 @@ mod tests {
             action_type: "builtin".to_string(),
             parameters: {
                 let mut params = HashMap::new();
-                params.insert("operation".to_string(), serde_yaml::Value::String("sleep".to_string()));
-                params.insert("duration".to_string(), serde_yaml::Value::Number(50.into()));
+                params.insert(
+                    "operation".to_string(),
+                    serde_yaml::Value::String("sleep".to_string()),
+                );
+                params.insert(
+                    "duration".to_string(),
+                    serde_yaml::Value::Number(50.into()),
+                );
                 params
             },
             outputs: HashMap::new(),
@@ -1111,9 +1187,11 @@ mod tests {
         ));
 
         let start = std::time::Instant::now();
-        let result = EnhancedTaskExecutor::execute_builtin_action(&action_spec, context).await;
+        let result =
+            EnhancedTaskExecutor::execute_builtin_action(&action_spec, context)
+                .await;
         let elapsed = start.elapsed();
-        
+
         assert!(result.is_ok());
         assert!(elapsed >= Duration::from_millis(50));
     }
@@ -1124,10 +1202,16 @@ mod tests {
             action_type: "cmd".to_string(),
             parameters: {
                 let mut params = HashMap::new();
-                params.insert("command".to_string(), serde_yaml::Value::String("echo".to_string()));
-                params.insert("args".to_string(), serde_yaml::Value::Sequence(vec![
-                    serde_yaml::Value::String("hello world".to_string())
-                ]));
+                params.insert(
+                    "command".to_string(),
+                    serde_yaml::Value::String("echo".to_string()),
+                );
+                params.insert(
+                    "args".to_string(),
+                    serde_yaml::Value::Sequence(vec![
+                        serde_yaml::Value::String("hello world".to_string()),
+                    ]),
+                );
                 params
             },
             outputs: HashMap::new(),
@@ -1137,13 +1221,21 @@ mod tests {
             flowbuilder_context::FlowContext::default(),
         ));
 
-        let result = EnhancedTaskExecutor::execute_cmd_action(&action_spec, context.clone()).await;
+        let result = EnhancedTaskExecutor::execute_cmd_action(
+            &action_spec,
+            context.clone(),
+        )
+        .await;
         assert!(result.is_ok());
 
         // Verify command output was stored
         let guard = context.lock().await;
         assert!(guard.variables.contains_key("cmd_stdout"));
-        assert!(guard.variables.get("cmd_stdout").unwrap().contains("hello world"));
+        assert!(guard
+            .variables
+            .get("cmd_stdout")
+            .unwrap()
+            .contains("hello world"));
     }
 
     #[cfg(feature = "http")]
@@ -1154,8 +1246,16 @@ mod tests {
             action_type: "http".to_string(),
             parameters: {
                 let mut params = HashMap::new();
-                params.insert("url".to_string(), serde_yaml::Value::String("https://httpbin.org/get".to_string()));
-                params.insert("method".to_string(), serde_yaml::Value::String("GET".to_string()));
+                params.insert(
+                    "url".to_string(),
+                    serde_yaml::Value::String(
+                        "https://httpbin.org/get".to_string(),
+                    ),
+                );
+                params.insert(
+                    "method".to_string(),
+                    serde_yaml::Value::String("GET".to_string()),
+                );
                 params
             },
             outputs: HashMap::new(),
@@ -1165,8 +1265,12 @@ mod tests {
             flowbuilder_context::FlowContext::default(),
         ));
 
-        let result = EnhancedTaskExecutor::execute_http_action(&action_spec, context.clone()).await;
-        
+        let result = EnhancedTaskExecutor::execute_http_action(
+            &action_spec,
+            context.clone(),
+        )
+        .await;
+
         // HTTP tests may fail due to network issues, so we'll make it more lenient
         if result.is_ok() {
             // Verify HTTP response was stored
@@ -1185,8 +1289,14 @@ mod tests {
             action_type: "wasm".to_string(),
             parameters: {
                 let mut params = HashMap::new();
-                params.insert("module".to_string(), serde_yaml::Value::String("test.wasm".to_string()));
-                params.insert("function".to_string(), serde_yaml::Value::String("main".to_string()));
+                params.insert(
+                    "module".to_string(),
+                    serde_yaml::Value::String("test.wasm".to_string()),
+                );
+                params.insert(
+                    "function".to_string(),
+                    serde_yaml::Value::String("main".to_string()),
+                );
                 params
             },
             outputs: HashMap::new(),
@@ -1196,7 +1306,9 @@ mod tests {
             flowbuilder_context::FlowContext::default(),
         ));
 
-        let result = EnhancedTaskExecutor::execute_wasm_action(&action_spec, context).await;
+        let result =
+            EnhancedTaskExecutor::execute_wasm_action(&action_spec, context)
+                .await;
         assert!(result.is_ok());
     }
 
@@ -1206,38 +1318,48 @@ mod tests {
             action_type: "composite".to_string(),
             parameters: {
                 let mut params = HashMap::new();
-                
-                let sub_actions = vec![
-                    serde_yaml::Value::Mapping({
-                        let mut map = serde_yaml::mapping::Mapping::new();
-                        map.insert(
-                            serde_yaml::Value::String("type".to_string()),
-                            serde_yaml::Value::String("builtin".to_string())
-                        );
-                        map.insert(
-                            serde_yaml::Value::String("parameters".to_string()),
-                            serde_yaml::Value::Mapping({
-                                let mut param_map = serde_yaml::mapping::Mapping::new();
-                                param_map.insert(
-                                    serde_yaml::Value::String("operation".to_string()),
-                                    serde_yaml::Value::String("log".to_string())
-                                );
-                                param_map.insert(
-                                    serde_yaml::Value::String("message".to_string()),
-                                    serde_yaml::Value::String("composite test".to_string())
-                                );
-                                param_map
-                            })
-                        );
-                        map.insert(
-                            serde_yaml::Value::String("outputs".to_string()),
-                            serde_yaml::Value::Mapping(serde_yaml::mapping::Mapping::new())
-                        );
-                        map
-                    })
-                ];
 
-                params.insert("actions".to_string(), serde_yaml::Value::Sequence(sub_actions));
+                let sub_actions = vec![serde_yaml::Value::Mapping({
+                    let mut map = serde_yaml::mapping::Mapping::new();
+                    map.insert(
+                        serde_yaml::Value::String("type".to_string()),
+                        serde_yaml::Value::String("builtin".to_string()),
+                    );
+                    map.insert(
+                        serde_yaml::Value::String("parameters".to_string()),
+                        serde_yaml::Value::Mapping({
+                            let mut param_map =
+                                serde_yaml::mapping::Mapping::new();
+                            param_map.insert(
+                                serde_yaml::Value::String(
+                                    "operation".to_string(),
+                                ),
+                                serde_yaml::Value::String("log".to_string()),
+                            );
+                            param_map.insert(
+                                serde_yaml::Value::String(
+                                    "message".to_string(),
+                                ),
+                                serde_yaml::Value::String(
+                                    "composite test".to_string(),
+                                ),
+                            );
+                            param_map
+                        }),
+                    );
+                    map.insert(
+                        serde_yaml::Value::String("outputs".to_string()),
+                        serde_yaml::Value::Mapping(
+                            serde_yaml::mapping::Mapping::new(),
+                        ),
+                    );
+                    map
+                })];
+
+                params.insert(
+                    "actions".to_string(),
+                    serde_yaml::Value::Sequence(sub_actions),
+                );
                 params
             },
             outputs: HashMap::new(),
@@ -1247,7 +1369,11 @@ mod tests {
             flowbuilder_context::FlowContext::default(),
         ));
 
-        let result = EnhancedTaskExecutor::execute_composite_action(&action_spec, context).await;
+        let result = EnhancedTaskExecutor::execute_composite_action(
+            &action_spec,
+            context,
+        )
+        .await;
         assert!(result.is_ok());
     }
 
@@ -1263,7 +1389,9 @@ mod tests {
             flowbuilder_context::FlowContext::default(),
         ));
 
-        let result = EnhancedTaskExecutor::execute_action_by_type(&action_spec, context).await;
+        let result =
+            EnhancedTaskExecutor::execute_action_by_type(&action_spec, context)
+                .await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("不支持的动作类型"));
     }
