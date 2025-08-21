@@ -119,8 +119,32 @@ pub enum ActionType {
 
 /// 参数定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Parameter {
-    pub value: serde_yaml::Value,
-    #[serde(default)]
-    pub required: bool,
+#[serde(untagged)]
+pub enum Parameter {
+    Full {
+        value: serde_yaml::Value,
+        #[serde(default)]
+        required: bool,
+    },
+    Bare(serde_yaml::Value),
+}
+
+impl Parameter {
+    pub fn as_value(&self) -> &serde_yaml::Value {
+        match self {
+            Parameter::Full { value, .. } => value,
+            Parameter::Bare(v) => v,
+        }
+    }
+
+    pub fn to_value(&self) -> serde_yaml::Value {
+        self.as_value().clone()
+    }
+
+    pub fn is_required(&self) -> bool {
+        match self {
+            Parameter::Full { required, .. } => *required,
+            Parameter::Bare(_) => false,
+        }
+    }
 }

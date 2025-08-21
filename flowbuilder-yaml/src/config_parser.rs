@@ -95,7 +95,7 @@ impl YamlConfigParser {
 
             for (key, value) in &action.parameters {
                 parameters
-                    .insert(format!("{prefix}_{key}"), value.value.clone());
+                    .insert(format!("{prefix}_{key}"), value.to_value());
             }
 
             for (key, value) in &action.outputs {
@@ -117,7 +117,7 @@ impl YamlConfigParser {
     ) -> Result<ActionSpec> {
         let mut parameters = HashMap::new();
         for (key, param) in &action.parameters {
-            parameters.insert(key.clone(), param.value.clone());
+            parameters.insert(key.clone(), param.to_value());
         }
 
         Ok(ActionSpec {
@@ -631,5 +631,153 @@ workflow:
                 "Tasks with next: null should have no dependencies"
             );
         }
+    }
+
+    #[test]
+    fn test_parameter_structured_object_mode() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  env:
+    TEST_ENV: "test"
+  vars:
+    name: "Test Workflow"
+  tasks:
+    - task:
+        id: "task1"
+        name: "Test Task"
+        description: "A test task"
+        actions:
+          - action:
+              id: "action1"
+              name: "Test Action"
+              description: "A test action"
+              type: "builtin"
+              flow:
+                next: null
+              outputs: {}
+              parameters:
+                operation:
+                  value: "log"
+                  required: true
+                level:
+                  value: "info"
+                message:
+                  value: "Hello World"
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let parser = YamlConfigParser::new(config.clone());
+        let action_spec = parser.convert_action_to_spec(&config.workflow.tasks[0].task.actions[0].action).unwrap();
+
+        // Verify parameters are extracted correctly
+        assert_eq!(action_spec.parameters.len(), 3);
+        assert_eq!(action_spec.parameters.get("operation").unwrap().as_str().unwrap(), "log");
+        assert_eq!(action_spec.parameters.get("level").unwrap().as_str().unwrap(), "info");
+        assert_eq!(action_spec.parameters.get("message").unwrap().as_str().unwrap(), "Hello World");
+
+        // Test required flag access
+        let operation_param = &config.workflow.tasks[0].task.actions[0].action.parameters["operation"];
+        assert!(operation_param.is_required());
+        
+        let level_param = &config.workflow.tasks[0].task.actions[0].action.parameters["level"];
+        assert!(!level_param.is_required()); // default is false
+    }
+
+    #[test]
+    fn test_parameter_shorthand_scalar_mode() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  env:
+    TEST_ENV: "test"
+  vars:
+    name: "Test Workflow"
+  tasks:
+    - task:
+        id: "task1"
+        name: "Test Task"
+        description: "A test task"
+        actions:
+          - action:
+              id: "action1"
+              name: "Test Action"
+              description: "A test action"
+              type: "builtin"
+              flow:
+                next: null
+              outputs: {}
+              parameters:
+                operation: "log"
+                level: "info"
+                message: "Hello World"
+                timeout: 5000
+                enabled: true
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let parser = YamlConfigParser::new(config.clone());
+        let action_spec = parser.convert_action_to_spec(&config.workflow.tasks[0].task.actions[0].action).unwrap();
+
+        // Verify parameters are extracted correctly
+        assert_eq!(action_spec.parameters.len(), 5);
+        assert_eq!(action_spec.parameters.get("operation").unwrap().as_str().unwrap(), "log");
+        assert_eq!(action_spec.parameters.get("level").unwrap().as_str().unwrap(), "info");
+        assert_eq!(action_spec.parameters.get("message").unwrap().as_str().unwrap(), "Hello World");
+        assert_eq!(action_spec.parameters.get("timeout").unwrap().as_i64().unwrap(), 5000);
+        assert_eq!(action_spec.parameters.get("enabled").unwrap().as_bool().unwrap(), true);
+
+        // Test that shorthand parameters have required = false by default
+        let operation_param = &config.workflow.tasks[0].task.actions[0].action.parameters["operation"];
+        assert!(!operation_param.is_required()); // shorthand mode defaults to false
+    }
+
+    #[test]
+    fn test_parameter_mixed_modes() {
+        let yaml_content = r#"
+workflow:
+  version: "1.0"
+  env:
+    TEST_ENV: "test"
+  vars:
+    name: "Test Workflow"
+  tasks:
+    - task:
+        id: "task1"
+        name: "Test Task"
+        description: "A test task"
+        actions:
+          - action:
+              id: "action1"
+              name: "Test Action"
+              description: "A test action"
+              type: "builtin"
+              flow:
+                next: null
+              outputs: {}
+              parameters:
+                operation:
+                  value: "log"
+                  required: true
+                level: "info"
+                message: "Hello World"
+"#;
+
+        let config = WorkflowLoader::from_yaml_str(yaml_content).unwrap();
+        let parser = YamlConfigParser::new(config.clone());
+        let action_spec = parser.convert_action_to_spec(&config.workflow.tasks[0].task.actions[0].action).unwrap();
+
+        // Verify parameters are extracted correctly
+        assert_eq!(action_spec.parameters.len(), 3);
+        assert_eq!(action_spec.parameters.get("operation").unwrap().as_str().unwrap(), "log");
+        assert_eq!(action_spec.parameters.get("level").unwrap().as_str().unwrap(), "info");
+        assert_eq!(action_spec.parameters.get("message").unwrap().as_str().unwrap(), "Hello World");
+
+        // Test mixed mode required flags
+        let operation_param = &config.workflow.tasks[0].task.actions[0].action.parameters["operation"];
+        assert!(operation_param.is_required()); // structured mode with required: true
+        
+        let level_param = &config.workflow.tasks[0].task.actions[0].action.parameters["level"];
+        assert!(!level_param.is_required()); // shorthand mode defaults to false
     }
 }
