@@ -24,6 +24,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde_yaml = { workspace = true }
+serde_json = { workspace = true }
 
 [features]
 # 默认启用核心 + YAML(含运行时) 方便示例直接编译
@@ -38,6 +39,9 @@ perf-metrics = ["runtime", "flowbuilder-runtime/perf-metrics"]
 parallel = ["runtime", "flowbuilder-runtime/parallel"]
 retry = ["runtime", "flowbuilder-runtime/retry"]
 detailed-logging = ["runtime", "flowbuilder-runtime/detailed-logging"]
+
+[dev-dependencies]
+chronetix-flowbridge = { path = "../crates/chronetix-flowbridge", features = ["inproc"] }
 
 [[example]]
 name = "new_architecture_demo"

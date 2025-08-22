@@ -1,0 +1,10 @@
+package flow:metrics
+
+/// 拉取式度量（轻量）
+interface metrics {
+  counters: func() -> list<record { key: string, value: u64 }>
+}
+
+world metrics-world {
+  export metrics
+}

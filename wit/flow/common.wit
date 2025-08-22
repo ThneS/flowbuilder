@@ -1,0 +1,46 @@
+package flow:common
+
+use wasi:io/streams@0.2.0
+
+/// 主题标识
+type topic = string;
+
+/// 头部键值
+type headers = list<tuple<string, string>>;
+
+/// 质量等级
+variant qos-class { best-effort, normal, high, realtime }
+
+/// 截止时间（纳秒）
+type deadline-ns = u64;
+
+/// 追踪上下文（可裁剪）
+record trace-context {
+  trace-id: string,
+  span-id: string,
+  parent-span-id: option<string>,
+}
+
+/// 内容哈希（内容寻址）
+record content-hash { algo: string, hex: string, size: option<u64> }
+
+/// Blob 定位器
+variant blob-locator {
+  by-hash: content-hash,
+  by-id: u64,
+  by-url: string,
+}
+
+/// 统一信封（控制面消息头）
+record envelope {
+  src: string,
+  dst: string,
+  topic: topic,
+  corr-id: option<string>,
+  deadline: option<deadline-ns>,
+  priority: option<u8>,
+  content-type: option<string>,   // application/cbor, application/arrow+ipc 等
+  schema-ver: option<u32>,
+  headers: headers,
+  trace: option<trace-context>,
+}

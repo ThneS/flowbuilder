@@ -1,0 +1,28 @@
+package flow:bus
+
+use flow:common/{envelope}
+
+/// 事件总线（适合标记、小结构体、配置变更等）
+interface event-bus {
+  /// 发布事件（小消息，建议 <= 64KB）
+  publish: func(env: envelope, payload: list<u8>) -> result<unit, string>
+
+  /// 请求-应答（可选）
+  request: func(env: envelope, payload: list<u8>, timeout-ms: u32)
+    -> result<list<u8>, string>
+
+  /// 订阅主题，返回一个订阅 id（用于 metrics 与取消）
+  subscribe: func(topic: string, group: option<string>)
+    -> result<u64, string>
+
+  /// 拉取事件（轻量拉模式）
+  poll: func(sub-id: u64, max-items: u32, wait-ms: u32)
+    -> result<list<tuple<envelope, list<u8>>>, string>
+
+  /// 取消订阅
+  unsubscribe: func(sub-id: u64) -> result<unit, string>
+}
+
+world bus-world {
+  export event-bus
+}
