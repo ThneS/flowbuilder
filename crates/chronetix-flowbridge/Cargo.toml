@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "chronetix-flowbridge"
+version = "0.1.0"
+edition = "2021"
+description = "Flowbuilder × Chronetix adapter: compile manifests & inproc runner glue"
+license = "Apache-2.0"
+repository = "https://github.com/ThneS/flowbuilder"
+
+[features]
+inproc = []
+ipc = []
+net = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"

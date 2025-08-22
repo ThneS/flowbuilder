@@ -5,6 +5,7 @@ members = [
     "flowbuilder-runtime",
     "flowbuilder-yaml",
     "flowbuilder",
+    "crates/chronetix-flowbridge",
 ]
 resolver = "2"
 

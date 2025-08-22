@@ -1,0 +1,24 @@
+package flow:blob
+
+use flow:common/{blob-locator, content-hash}
+use wasi:io/streams@0.2.0
+
+/// 大对象（Blob）传输控制面
+interface blob {
+  /// 申请写入一个 blob，返回 (blob-id, writer)
+  create-writer: func(
+    expected-size: option<u64>,
+    codec: option<string>
+  ) -> result<(u64, streams.outgoing-stream), string>
+
+  /// 提交写入，返回内容哈希
+  commit: func(blob-id: u64) -> result<content-hash, string>
+
+  /// 通过定位器打开读取流
+  open-reader: func(locator: blob-locator)
+    -> result<streams.incoming-stream, string>
+}
+
+world blob-world {
+  export blob
+}

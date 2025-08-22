@@ -1,0 +1,26 @@
+package flow:stream
+
+use flow:common/{qos-class}
+use wasi:io/streams@0.2.0
+
+/// 大量 bytes/Arrow 批量流的"控制面"
+interface channel {
+  /// 创建单向通道，返回 channel-id
+  create: func(label: string, capacity: u32, qos: qos-class)
+    -> result<u64, string>
+
+  /// 由生产者获取写端（outgoing-stream）
+  acquire-tx: func(channel-id: u64)
+    -> result<streams.outgoing-stream, string>
+
+  /// 由消费者获取读端（incoming-stream）
+  acquire-rx: func(channel-id: u64)
+    -> result<streams.incoming-stream, string>
+
+  /// 关闭并回收（双方均可调用，幂等）
+  close: func(channel-id: u64) -> result<unit, string>
+}
+
+world stream-world {
+  export channel
+}

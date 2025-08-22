@@ -485,12 +485,10 @@ impl EnhancedTaskExecutor {
                 "composite" => {
                     Self::execute_composite_action(action_spec, context).await
                 }
-                _ => {
-                    Err(anyhow::anyhow!(
-                        "不支持的动作类型: {}",
-                        action_spec.action_type
-                    ))
-                }
+                _ => Err(anyhow::anyhow!(
+                    "不支持的动作类型: {}",
+                    action_spec.action_type
+                )),
             }
         })
     }
