@@ -25,6 +25,10 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde_yaml = { workspace = true }
 
+[dev-dependencies]
+chronetix-flowbridge = { path = "../crates/chronetix-flowbridge", features = ["inproc"] }
+serde_json = { workspace = true }
+
 [features]
 # 默认启用核心 + YAML(含运行时) 方便示例直接编译
 default = ["core", "yaml-runtime"]
@@ -48,3 +52,7 @@ required-features = ["yaml-runtime"]
 name = "action_demo"
 path = "examples/action_demo.rs"
 required-features = ["runtime"]
+
+[[example]]
+name = "flow_poc"
+path = "examples/flow_poc.rs"

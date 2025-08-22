@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/// Common types and interfaces for flow processing
+package flow:common@0.1.0;
+
+/// Unique identifier for flow entities
+type entity-id = string;
+
+/// Timestamp in milliseconds since Unix epoch
+type timestamp = u64;
+
+/// Generic key-value metadata
+type metadata = list<tuple<string, string>>;
+
+/// Result type for operations that may fail
+variant result<ok, err> {
+    ok(ok),
+    error(err),
+}
+
+/// Error information
+record error-info {
+    code: string,
+    message: string,
+    details: option<string>,
+}
+
+/// Flow execution context
+record flow-context {
+    flow-id: entity-id,
+    execution-id: entity-id,
+    timestamp: timestamp,
+    metadata: metadata,
+}
+
+/// Node execution context
+record node-context {
+    node-id: entity-id,
+    flow-context: flow-context,
+    metadata: metadata,
+}
+
+/// Data frame for passing between nodes
+record data-frame {
+    content-type: string,
+    schema-version: string,
+    payload: list<u8>,
+    metadata: metadata,
+}

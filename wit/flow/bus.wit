@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/// Event bus interface for publish/subscribe messaging
+package flow:bus@0.1.0;
+
+use flow:common@0.1.0.{entity-id, timestamp, metadata, result, error-info, data-frame};
+
+/// Event bus interface
+interface event-bus {
+    /// Publish an event to a topic
+    publish: func(topic: string, event: event-message) -> result<_, error-info>;
+    
+    /// Subscribe to events on a topic
+    subscribe: func(topic: string, subscriber-id: entity-id) -> result<subscription-handle, error-info>;
+    
+    /// Unsubscribe from a topic
+    unsubscribe: func(handle: subscription-handle) -> result<_, error-info>;
+    
+    /// Request-response pattern
+    request: func(topic: string, request: event-message, timeout-ms: u32) -> result<event-message, error-info>;
+}
+
+/// Event message structure
+record event-message {
+    message-id: entity-id,
+    timestamp: timestamp,
+    source: entity-id,
+    event-type: string,
+    data: data-frame,
+}
+
+/// Subscription handle for managing subscriptions
+resource subscription-handle {
+    /// Get the next event from the subscription
+    next-event: func() -> result<option<event-message>, error-info>;
+    
+    /// Check if subscription is still active
+    is-active: func() -> bool;
+}
+
+/// Quality of Service settings for event delivery
+record qos-settings {
+    reliability: reliability-level,
+    durability: durability-level,
+    max-retries: u32,
+    timeout-ms: u32,
+}
+
+/// Reliability levels for message delivery
+enum reliability-level {
+    best-effort,
+    reliable,
+    guaranteed,
+}
+
+/// Durability levels for message persistence
+enum durability-level {
+    volatile,
+    transient,
+    persistent,
+}

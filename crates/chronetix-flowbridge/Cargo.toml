@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "chronetix-flowbridge"
+version = "0.1.0"
+edition = "2021"
+description = "Bridge between FlowBuilder and Chronetix runtime systems"
+authors = ["Thne"]
+license = "Apache-2.0"
+
+[features]
+default = []
+inproc = []
+
+[dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["rt", "macros"] }
+
+[dev-dependencies]
+tokio-test = "0.4"

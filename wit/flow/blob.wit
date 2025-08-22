@@ -1,0 +1,90 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/// Blob storage interface for large data objects
+package flow:blob@0.1.0;
+
+use flow:common@0.1.0.{entity-id, timestamp, metadata, result, error-info};
+
+/// Blob storage interface
+interface blob-store {
+    /// Store a blob and return its identifier
+    store-blob: func(content: blob-content) -> result<blob-id, error-info>;
+    
+    /// Retrieve a blob by identifier
+    get-blob: func(id: blob-id) -> result<blob-content, error-info>;
+    
+    /// Delete a blob
+    delete-blob: func(id: blob-id) -> result<_, error-info>;
+    
+    /// Check if a blob exists
+    blob-exists: func(id: blob-id) -> result<bool, error-info>;
+    
+    /// List blobs with optional prefix filter
+    list-blobs: func(prefix: option<string>, limit: option<u32>) -> result<list<blob-metadata>, error-info>;
+}
+
+/// Blob identifier
+type blob-id = string;
+
+/// Blob content with metadata
+record blob-content {
+    data: list<u8>,
+    content-type: string,
+    encoding: option<string>,
+    metadata: metadata,
+}
+
+/// Blob metadata without content
+record blob-metadata {
+    id: blob-id,
+    size: u64,
+    content-type: string,
+    created-at: timestamp,
+    modified-at: timestamp,
+    checksum: option<string>,
+    metadata: metadata,
+}
+
+/// Storage configuration
+record storage-config {
+    backend: storage-backend,
+    compression: option<compression-algorithm>,
+    encryption: option<encryption-config>,
+    retention-policy: option<retention-policy>,
+}
+
+/// Storage backend types
+enum storage-backend {
+    memory,
+    filesystem,
+    s3,
+    azure-blob,
+    gcs,
+}
+
+/// Compression algorithms
+enum compression-algorithm {
+    gzip,
+    lz4,
+    zstd,
+    brotli,
+}
+
+/// Encryption configuration
+record encryption-config {
+    algorithm: encryption-algorithm,
+    key-id: string,
+}
+
+/// Encryption algorithms
+enum encryption-algorithm {
+    aes-256-gcm,
+    chacha20-poly1305,
+}
+
+/// Retention policy for automatic cleanup
+record retention-policy {
+    max-age-seconds: option<u64>,
+    max-size-bytes: option<u64>,
+    max-count: option<u32>,
+}

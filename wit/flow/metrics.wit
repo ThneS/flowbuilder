@@ -1,0 +1,138 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/// Metrics and observability interface
+package flow:metrics@0.1.0;
+
+use flow:common@0.1.0.{entity-id, timestamp, metadata, result, error-info};
+
+/// Metrics collection and reporting interface
+interface metrics-collector {
+    /// Record a counter metric
+    record-counter: func(name: string, value: u64, labels: metadata) -> result<_, error-info>;
+    
+    /// Record a gauge metric
+    record-gauge: func(name: string, value: f64, labels: metadata) -> result<_, error-info>;
+    
+    /// Record a histogram metric
+    record-histogram: func(name: string, value: f64, labels: metadata) -> result<_, error-info>;
+    
+    /// Start a timer and return a handle
+    start-timer: func(name: string, labels: metadata) -> result<timer-handle, error-info>;
+    
+    /// Get current metric values
+    get-metrics: func(filter: option<metric-filter>) -> result<list<metric-value>, error-info>;
+    
+    /// Export metrics in a specific format
+    export-metrics: func(format: export-format) -> result<list<u8>, error-info>;
+}
+
+/// Timer handle for measuring durations
+resource timer-handle {
+    /// Stop the timer and record the duration
+    stop: func() -> result<f64, error-info>;
+    
+    /// Get elapsed time without stopping
+    elapsed: func() -> f64;
+}
+
+/// Metric value with metadata
+record metric-value {
+    name: string,
+    metric-type: metric-type,
+    value: metric-data,
+    timestamp: timestamp,
+    labels: metadata,
+}
+
+/// Types of metrics
+enum metric-type {
+    counter,
+    gauge,
+    histogram,
+    summary,
+}
+
+/// Metric data variants
+variant metric-data {
+    counter(u64),
+    gauge(f64),
+    histogram(histogram-data),
+    summary(summary-data),
+}
+
+/// Histogram data with buckets
+record histogram-data {
+    count: u64,
+    sum: f64,
+    buckets: list<histogram-bucket>,
+}
+
+/// Histogram bucket
+record histogram-bucket {
+    upper-bound: f64,
+    count: u64,
+}
+
+/// Summary data with quantiles
+record summary-data {
+    count: u64,
+    sum: f64,
+    quantiles: list<quantile>,
+}
+
+/// Quantile value
+record quantile {
+    quantile: f64,
+    value: f64,
+}
+
+/// Filter for selecting metrics
+record metric-filter {
+    name-pattern: option<string>,
+    labels: option<metadata>,
+    metric-types: option<list<metric-type>>,
+}
+
+/// Export formats for metrics
+enum export-format {
+    prometheus,
+    json,
+    csv,
+    opentelemetry,
+}
+
+/// Health check interface
+interface health-checker {
+    /// Check overall system health
+    check-health: func() -> health-status;
+    
+    /// Check health of specific component
+    check-component: func(component-id: entity-id) -> health-status;
+    
+    /// Register a health check
+    register-check: func(component-id: entity-id, check-config: health-check-config) -> result<_, error-info>;
+}
+
+/// Health status
+record health-status {
+    status: health-level,
+    message: option<string>,
+    details: metadata,
+    timestamp: timestamp,
+}
+
+/// Health levels
+enum health-level {
+    healthy,
+    degraded,
+    unhealthy,
+    unknown,
+}
+
+/// Health check configuration
+record health-check-config {
+    interval-ms: u32,
+    timeout-ms: u32,
+    failure-threshold: u32,
+    recovery-threshold: u32,
+}

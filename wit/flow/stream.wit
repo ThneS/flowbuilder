@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: Apache-2.0
+
+/// High-throughput data streaming interface
+package flow:stream@0.1.0;
+
+use flow:common@0.1.0.{entity-id, timestamp, metadata, result, error-info, data-frame};
+
+/// Data stream interface for high-throughput data transfer
+interface data-stream {
+    /// Create a new data stream
+    create-stream: func(config: stream-config) -> result<stream-handle, error-info>;
+    
+    /// Send data on a stream
+    send: func(handle: stream-handle, frame: data-frame) -> result<_, error-info>;
+    
+    /// Receive data from a stream (non-blocking)
+    receive: func(handle: stream-handle) -> result<option<data-frame>, error-info>;
+    
+    /// Close a stream
+    close-stream: func(handle: stream-handle) -> result<_, error-info>;
+}
+
+/// Stream configuration
+record stream-config {
+    stream-id: entity-id,
+    buffer-size: u32,
+    flow-control: flow-control-config,
+    compression: option<compression-type>,
+}
+
+/// Flow control configuration
+record flow-control-config {
+    credit-based: bool,
+    initial-credits: u32,
+    max-credits: u32,
+    backpressure-threshold: u32,
+}
+
+/// Compression types for data streams
+enum compression-type {
+    none,
+    gzip,
+    lz4,
+    zstd,
+}
+
+/// Stream handle for managing data streams
+resource stream-handle {
+    /// Get stream statistics
+    get-stats: func() -> stream-stats;
+    
+    /// Check if stream is still open
+    is-open: func() -> bool;
+    
+    /// Get current buffer usage
+    buffer-usage: func() -> buffer-info;
+}
+
+/// Stream statistics
+record stream-stats {
+    bytes-sent: u64,
+    bytes-received: u64,
+    frames-sent: u64,
+    frames-received: u64,
+    errors: u64,
+}
+
+/// Buffer usage information
+record buffer-info {
+    used: u32,
+    capacity: u32,
+    utilization-percent: f32,
+}
