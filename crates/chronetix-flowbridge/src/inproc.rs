@@ -39,6 +39,9 @@ impl FlowAdapter for InprocAdapter {
                         priority: n.priority,
                         deadline_ns: n.deadline_ns,
                     }),
+                    timers: None, // TODO: extract from node definition
+                    bus_subscriptions: None, // TODO: extract from node definition
+                    bus_publications: None, // TODO: extract from node definition
                 }
             })
             .collect::<Vec<_>>();
@@ -65,6 +68,11 @@ impl FlowAdapter for InprocAdapter {
                     to: e.to.clone(),
                     channel,
                     topic_or_label: e.label.clone(),
+                    plane: Some("data".to_string()), // Default to data plane
+                    content_type: Some("application/cbor".to_string()), // Default
+                    schema_ver: Some("v1".to_string()), // Default
+                    buffer: None,
+                    watermark: None,
                 }
             })
             .collect::<Vec<_>>();

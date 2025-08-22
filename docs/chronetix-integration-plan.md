@@ -1,8 +1,8 @@
 # Flowbuilder × Chronetix 集成计划（对齐 Envelope/EventBus/DataPort）
 
 -   Status: Draft
--   Version: 0.2.0
--   Date: 2025-08-17
+-   Version: 0.3.0
+-   Date: 2025-08-22
 
 参考：`docs/Chronetix/FLOWBUILDER_INTEGRATION.md`
 
@@ -57,52 +57,116 @@
 
 ## 4. 契约与扩展（Contracts & Schema）
 
--   Envelope：按 `docs/rfc/draft/RFC_DISTRIBUTED_INTERFACE.md` §2。
+-   Envelope：按 `docs/Chronetix/RFC_DISTRIBUTED_INTERFACE.md` §2。
 -   EventBus API：publish/request/subscribe（控制面）。
 -   DataPort API：acquire_credit/send_frame/on_frame（数据面）。
 -   FlowAdapter：
 
     -   `compile(graph) -> { PluginManifest[], routes, schemas }`。
     -   输出应包含：
-        -   每个节点的 `plugin_id`/`artifact`/`capabilities`（是否需要 DataPort、credit 阈值等）。
-        -   每条边的 `topic`/`port`/`content_type`/`schema_ver`。
-        -   节点运行参数：`deadline_ns`/`priority`/重试策略（如由 Chronetix 托管）。
+        -   每个节点的 `plugin_id`/`artifact`/`io`（inputs/outputs/content_type/schema_ver/batch_hints）。
+        -   每条边的 `topic`/`port`/`content_type`/`schema_ver`，以及 `plane`（data|control）。
+        -   节点运行参数：`deadline_ns`/`priority`/重试策略（由 Chronetix 托管）。
 
--   YAML/DSL 扩展（Flowbuilder 侧）
-    -   node.plugin: { kind: wasm|dylib|process, artifact, capabilities }
-    -   io.schema: { content_type: application/cbor, schema_ver: "v1" }
-    -   qos: { deadline_ns, priority, retry, max_inflight, credit_high, credit_low }
-    -   bus/dataport: { topic, port, buffer, watermark }
+### 4.1 控制面与时间能力编排（Graph/DSL 设计）
 
-## 5. 里程碑（Plan & Milestones）
+-   边的平面（plane）
+    -   `plane: data | control`；data → DataPort；control → EventBus。
 
--   M1 PoC（inproc，单进程）
+-   平台节点（显式）
+    -   `timer-source`：按周期/cron/一次性 schedule 产出 tick（control 面输出）。
+    -   `eventbus-source`：订阅某个 topic/pattern，产出控制事件流。
+    -   `eventbus-sink`：将上游事件/状态发布到指定 topic。
 
-    1. 最小 DAG：Source → Map → Sink。
-    2. EventBus 传控制消息，DataPort 传数据帧。
-    3. 超时映射为 deadline_ns；导出 p95/p99 与 miss 计数。
-       验收：RTT p95 可观测；背压从 sink 向上游生效；无死锁/泄漏。
+-   侧边车/绑定（隐式）
+    -   `bindings.timer[]`：为节点注册 on-tick 回调（无需显式边）。
+    -   `bindings.bus.subscriptions[]` / `bindings.bus.publications[]`：为节点注册总线订阅/发布。
 
--   M2 IPC（UDS/CBOR + SHM Ring）
+-   适配器（桥接）
+    -   control→data：将 EventBus 事件"物化"为数据帧进入数据面。
+    -   data→control：将数据面信号转为控制事件（背压告警、SLO miss）。
 
-    1. EventBus → IpcEventBus（UDS+CBOR）。
-    2. DataPort → ShmDataPort（环形共享内存 + 事件通知）。
-       验收：功能等价；p95 延迟退化 ≤ inproc 的 3x；稳定无资源泄漏。
+### 4.2 CompileOutput 字段扩展（FlowAdapter 输出）
 
--   M3 网络（QUIC + CBOR）
-    1. 单跳远端算子；断线重连/超时/错误分类完善。
-       验收：Envelope 编解码兼容；断线恢复正确；指标齐全。
+-   `routes[].plane = data | control`（控制面边用于平台节点连线）。
+-   `manifests[].timers[]`：
+    -   `id, schedule{interval_ms|rate_hz|cron, start_at, align_to, jitter_pct}`
+    -   `miss_policy: skip | catch_up | coalesce`
+    -   `deadline_ns, priority`（可继承节点 QoS）
+-   `manifests[].bus_subscriptions[]`：`pattern, delivery: at_least_once, codec: json|cbor, filter(optional)`
+-   `manifests[].bus_publications[]`：`topic, codec: json|cbor, default_envelope{priority/deadline}`
+
+### 4.3 编码与协商（摘要）
+
+-   编排产物落盘默认 JSON；控制面在线传输 M2 起推荐 CBOR；通过 `content_type` 协商。
+-   WIT ABI 从 JSON 文本逐步迁移为 `bytes + content_type`，保持兼容。
+
+## 5. 示例（YAML/DSL 片段）
+
+### 5.1 侧边车绑定（给 transform 节点加定时与发布进度）
+
+```yaml
+nodes:
+  - id: transform-c
+    plugin:
+      kind: wasm
+      artifact: file://plugins/map.wasm
+    io:
+      inputs:  [{content_type: application/arrow-ipc, schema_ver: v1}]
+      outputs: [{content_type: application/arrow-ipc, schema_ver: v1}]
+    qos: { deadline_ns: 2000000, priority: 5 }
+    bindings:
+      timer:
+        - id: flush
+          schedule: { interval_ms: 500, align_to: "second" }
+          miss_policy: coalesce
+      bus:
+        publications:
+          - topic: flow/c/progress
+            codec: cbor
+routes:
+  - from: source-a
+    to: transform-c
+    plane: data
+    topic: flow/edge/A-C
+    port: dataport/A-C
+    content_type: application/arrow-ipc
+    schema_ver: v1
+```
+
+### 5.2 显式平台节点（从总线订阅控制事件参与数据流 join）
+
+```yaml
+nodes:
+  - id: control-in
+    plugin: { kind: platform, type: eventbus-source }
+    bus:
+      subscribe:
+        pattern: "control/config/*"
+        codec: json
+  - id: join-cfg
+    plugin: { kind: wasm, artifact: file://plugins/join.wasm }
+routes:
+  - from: control-in
+    to: join-cfg
+    plane: control
+    topic: control/config/*
+  - from: transform-c
+    to: join-cfg
+    plane: data
+    topic: flow/edge/C-J
+    port: dataport/C-J
+```
 
 ## 6. TODO（Backlog，含 Flowbuilder 侧工作）
 
 -   [ ] 在 `flowbuilder-core/examples` 添加 `flow_poc.rs`：读取简化 DAG → 生成 `PluginManifest + routes + schemas`（inproc PoC）。
--   [ ] 新建适配 crate：`chronetix-flowbridge`（或 `flowbuilder-chronetix`）：定义 `FlowAdapter/NodeRunner` traits 与 inproc 实现。
+-   [ ] 新建适配 crate：`chronetix-flowbridge`（或 `flowbuilder-chronetix`）：定义 `FlowAdapter` 并输出上文扩展字段。
 -   [ ] IpcEventBus/ShmDataPort 接口对齐（按 RFC）：落原型与冒烟测试。
 -   [ ] 指标桥接：将 Chronetix `MetricsRegistry` 导入 Flowbuilder 面板（或导出到统一 metrics）。
 -   [ ] Schema registry：保持 content_type/schema_ver 的兼容策略与样例。
 -   [ ] 文档联动：在两个项目 README 互链；标注部署矩阵（inproc / IPC / 网络）。
--   [ ] YAML/DSL 扩展字段定义与验证（`flowbuilder-yaml`）：plugin/qos/bus/dataport/schema 等。
--   [ ] Planner 增强：在编译期计算 deadline/priority 的默认值与继承规则；生成 manifests。
+-   [ ] Planner：在编译期计算 deadline/priority 的默认值与继承规则；生成 manifests。
 -   [ ] 单元/集成测试：最小 DAG、背压、deadline miss、重试与超时、断线恢复（M3）。
 
 ## 7. 质量门槛（Validation & SLO）
@@ -120,8 +184,8 @@
 
 ## 9. 版本与开关（Features）
 
--   Flowbuilder 侧：`yaml-runtime`（默认含 `perf-metrics`）、`detailed-logging`（调试）。
--   集成特性：`chronetix-integration`（启用 FlowAdapter/NodeRunner 与指标桥接）。
+-   Flowbuilder 侧：`yaml-runtime`、`detailed-logging`。
+-   集成特性：`chronetix-integration`（启用 FlowAdapter 输出扩展字段）。
 -   形态开关：`inproc` / `ipc` / `network`（构建与运行参数）。
 
 ## 10. 下一步（Next Steps）
