@@ -133,3 +133,11 @@
 —
 
 维护者：Flowbuilder 团队 · 参照 `docs/Chronetix/FLOWBUILDER_INTEGRATION.md` 持续更新
+
+---
+
+## 11. 相关文档（Related Docs）
+
+- 本仓：`docs/chronetix/RESPONSIBILITIES_AND_APIS.md` — Flowbridge（Flowbuilder 侧）职责与公共接口
+- 关联仓：Chronetix `docs/integration/FLOWBRIDGE_API_CONTRACT.md` — 接口边界与关键 API（总览）
+- 关联仓：Chronetix `docs/integration/ENCODING_OPTIONS.md` — 控制面编码选项
