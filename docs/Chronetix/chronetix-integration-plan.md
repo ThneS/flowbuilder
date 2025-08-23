@@ -4,7 +4,7 @@
 -   Version: 0.3.0
 -   Date: 2025-08-22
 
-参考：`docs/Chronetix/FLOWBUILDER_INTEGRATION.md`
+参考：`docs/integration/FLOWBUILDER_INTEGRATION.md`（Chronetix 仓）
 
 ## 1. 目标（Goals）
 
@@ -57,7 +57,7 @@
 
 ## 4. 契约与扩展（Contracts & Schema）
 
--   Envelope：按 `docs/Chronetix/RFC_DISTRIBUTED_INTERFACE.md` §2。
+-   Envelope：按 `docs/rfc/draft/RFC_DISTRIBUTED_INTERFACE.md` §2（Chronetix 仓）。
 -   EventBus API：publish/request/subscribe（控制面）。
 -   DataPort API：acquire_credit/send_frame/on_frame（数据面）。
 -   FlowAdapter：
@@ -196,12 +196,12 @@ routes:
 
 —
 
-维护者：Flowbuilder 团队 · 参照 `docs/Chronetix/FLOWBUILDER_INTEGRATION.md` 持续更新
+维护者：Flowbuilder 团队 · 参照 `docs/integration/FLOWBUILDER_INTEGRATION.md` 持续更新（Chronetix 仓）
 
 ---
 
 ## 11. 相关文档（Related Docs）
 
-- 本仓：`docs/chronetix/RESPONSIBILITIES_AND_APIS.md` — Flowbridge（Flowbuilder 侧）职责与公共接口
+- 本仓：`docs/Chronetix/RESPONSIBILITIES_AND_APIS.md` — Flowbridge（Flowbuilder 侧）职责与公共接口
 - 关联仓：Chronetix `docs/integration/FLOWBRIDGE_API_CONTRACT.md` — 接口边界与关键 API（总览）
 - 关联仓：Chronetix `docs/integration/ENCODING_OPTIONS.md` — 控制面编码选项

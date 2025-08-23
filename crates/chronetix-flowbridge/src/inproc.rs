@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::types::*;
-use crate::{FlowAdapter, SimpleGraph};
+use crate::types::{ChannelKind, PluginKind};
+use crate::{contract as c, FlowAdapter, SimpleGraph};
 use anyhow::{anyhow, Result};
 
 pub struct InprocAdapter;
@@ -9,9 +9,9 @@ pub struct InprocAdapter;
 impl FlowAdapter for InprocAdapter {
     type GraphDef = SimpleGraph;
 
-    fn compile(graph: &Self::GraphDef) -> Result<CompileOutput> {
+    fn compile(graph: &Self::GraphDef) -> Result<c::CompileOutput> {
         // 1) Manifests
-        let manifests = graph
+        let manifests: Vec<c::PluginManifest> = graph
             .nodes
             .iter()
             .map(|n| {
@@ -26,28 +26,40 @@ impl FlowAdapter for InprocAdapter {
                         PluginKind::Process
                     }
                 };
-
-                PluginManifest {
-                    id: n.id.clone(),
-                    kind,
-                    entry: n.entry.clone(),
-                    params: serde_json::json!({}),
-                    resources: Some(ResourceHints {
-                        cpu: None,
-                        mem: None,
-                        qos: n.qos.clone(),
-                        priority: n.priority,
-                        deadline_ns: n.deadline_ns,
+                // Map to contract::PluginManifest (minimal)
+                c::PluginManifest {
+                    plugin_id: n.id.clone(),
+                    version: Some("0.1.0".to_string()),
+                    category: Some("Business".to_string()),
+                    role: Some(
+                        match kind {
+                            PluginKind::Wasm
+                            | PluginKind::Dylib
+                            | PluginKind::Process => "Transform",
+                        }
+                        .to_string(),
+                    ),
+                    origin: Some("external".to_string()),
+                    artifact: Some(c::Artifact {
+                        kind: match kind {
+                            PluginKind::Wasm => "WasmComponent",
+                            PluginKind::Dylib => "Dylib",
+                            PluginKind::Process => "Process",
+                        }
+                        .to_string(),
+                        uri: n.entry.clone(),
                     }),
-                    timers: None, // TODO: extract from node definition
-                    bus_subscriptions: None, // TODO: extract from node definition
-                    bus_publications: None, // TODO: extract from node definition
+                    io: None,
+                    qos: n.qos.clone().map(|q| serde_json::json!({ "qos": q })),
+                    timers: None,
+                    features: None,
+                    annotations: None,
                 }
             })
             .collect::<Vec<_>>();
 
         // 2) Routes
-        let routes = graph
+        let routes: Vec<c::Route> = graph
             .edges
             .iter()
             .map(|e| {
@@ -62,15 +74,23 @@ impl FlowAdapter for InprocAdapter {
                         ChannelKind::Stream
                     }
                 };
-
-                RouteSpec {
+                // Map to contract::Route (assume data plane stream)
+                c::Route {
                     from: e.from.clone(),
                     to: e.to.clone(),
-                    channel,
-                    topic_or_label: e.label.clone(),
-                    plane: Some("data".to_string()), // Default to data plane
-                    content_type: Some("application/cbor".to_string()), // Default
-                    schema_ver: Some("v1".to_string()), // Default
+                    plane: match channel {
+                        ChannelKind::EventBus => "control",
+                        _ => "data",
+                    }
+                    .to_string(),
+                    topic: e.label.clone(),
+                    port: if matches!(channel, ChannelKind::Stream) {
+                        Some(format!("dataport/{}-{}", e.from, e.to))
+                    } else {
+                        None
+                    },
+                    content_type: "application/cbor".to_string(),
+                    schema_ver: "v1".to_string(),
                     buffer: None,
                     watermark: None,
                 }
@@ -78,18 +98,17 @@ impl FlowAdapter for InprocAdapter {
             .collect::<Vec<_>>();
 
         // 3) Schemas（最简：占位示例）
-        let schemas = vec![SchemaDescriptor {
-            id: "default-control".into(),
+        let schemas = vec![c::SchemaDescriptor {
             content_type: "application/cbor".into(),
-            version: 1,
-            meta: serde_json::json!({}),
+            schema_ver: "v1".into(),
+            schema_ref: "registry://schemas/default@v1".into(),
         }];
 
         if manifests.is_empty() {
             return Err(anyhow!("no nodes in graph"));
         }
 
-        Ok(CompileOutput {
+        Ok(c::CompileOutput {
             manifests,
             routes,
             schemas,

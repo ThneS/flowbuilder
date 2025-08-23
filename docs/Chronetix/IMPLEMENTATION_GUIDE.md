@@ -6,9 +6,9 @@
 
 ## 0. 摘要（TL;DR）
 
-- 编排（Flowbuilder）：从 DSL/YAML 编译为 PluginManifest[] + routes + schemas（Envelope 契约），不关心执行细节。
+- 编排（Flowbuilder）：从 DSL/YAML 编译为 PluginManifest[] + routes + schemas（Envelope 契约），不关心执行细节。详见 `docs/Chronetix/chronetix-flowbridge-api-contract.md`。
 - 执行（Chronetix）：提供 EventBus（控制面）与 DataPort（数据面），落实背压（credit/WouldBlock）、SLA（deadline/priority）、可观测与热更新。
-- 组件化（WIT）：在 Wasm 形态时，通过统一的 WIT 接口承载事件总线与数据通道（含 Arrow/Blob/Streams）。
+- 组件化（WIT）：在 Wasm 形态时，通过统一的 WIT 接口承载事件总线与数据通道（含 Arrow/Blob/Streams）。接口草案位于本仓 `wit/flow/*.wit`。
 
 ## 1. 数据域与类型映射
 
@@ -22,6 +22,7 @@
   - 分析/批量：Arrow IPC Streaming（在 Stream 上承载）。
   - 大对象（Blob）：走内容寻址引用 + 流式上传/下载（可用 presign URL）。
   - 日志/度量/追踪：结构化事件 + MetricsRegistry 桥接至 Flowbuilder 面板。
+  - 资源配置（Resource）：建议 JSON/CBOR，控制面传输，注册 schema（schemas[]）。
 
 - 场景
   - 通知 / RPC / PubSub / 广播：EventBus。
@@ -36,6 +37,19 @@
   - routes：EventBus topics + Stream/DataPort 端口拓扑。
   - schemas：content_type（application/cbor/arrow+ipc/...）与 schema_ver。
   - defaults：deadline_ns/priority 继承规则与 QoS 的默认。
+
+插件形态与分类（建议实现规范）：
+- origin：internal | external
+  - internal：来自 Chronetix 内部组件（Wasm Component 形态），如时间/总线/统计等系统能力；Manifest 与业务插件一致。
+  - external：业务或第三方交付的插件。
+- category：Business | System | Resource
+  - Business：具体业务逻辑（例如 HTTP 收发、协议编解码、业务 ETL）。
+  - System：平台系统能力（定时器、事件总线、指标统计等）。
+  - Resource：环境与资源信息提供者（IP/掩码/默认网关、端口、媒体位置等），通常在控制面输出配置数据。
+
+Manifest 建议：
+- artifact.kind 使用 "WasmComponent" 表达组件模型；origin 填写 internal/external。
+- Resource 类输出 content_type 建议 application/json 或 application/cbor，提供 schema_ref 并入 schemas[] 去重集合。
 
 - NodeRunner（Chronetix 托管）：
   - run(input) -> output：由 Chronetix Executor 执行；TimeManager 提供 tick/deadline；DataPort 提供 credit 背压；WouldBlock 快速退避。
@@ -53,6 +67,10 @@
 - Traits（见 crates/chronetix-flowbridge）：
   - FlowAdapter：从 Flowbuilder DAG/DSL 生成 manifests/routes/schemas。
   - NodeRunner：Chronetix 运行入口的抽象封装（inproc 胶水，后续可 IPC/QUIC）。
+
+参考：
+- 集成计划：`docs/Chronetix/chronetix-integration-plan.md`
+- 职责与公共接口：`docs/Chronetix/RESPONSIBILITIES_AND_APIS.md`
 
 ## 4. 背压、SLA 与 QoS
 

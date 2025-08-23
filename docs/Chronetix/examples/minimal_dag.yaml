@@ -1,0 +1,69 @@
+# 最小 DAG（演示 origin/category 字段）
+
+nodes:
+  - id: resource-net
+    origin: internal
+    category: Resource
+    plugin:
+      kind: wasm
+      artifact: builtin://chronetix/resource/netinfo
+    io:
+      outputs:
+        - { content_type: application/json, schema_ver: v1 }
+
+  - id: timer-1
+    origin: internal
+    category: System
+    plugin:
+      kind: wasm
+      type: timer-source
+    bindings:
+      timer:
+        - id: tick
+          schedule: { interval_ms: 1000, align_to: "second" }
+          miss_policy: coalesce
+
+  - id: http-client
+    origin: external
+    category: Business
+    plugin:
+      kind: wasm
+      artifact: file://plugins/http_client.wasm
+    io:
+      inputs:
+        - { content_type: application/json, schema_ver: v1 }
+      outputs:
+        - { content_type: application/json, schema_ver: v1 }
+    qos: { deadline_ns: 5000000, priority: 5 }
+
+  - id: collector-sink
+    origin: external
+    category: Business
+    plugin:
+      kind: wasm
+      artifact: file://plugins/collector.wasm
+    io:
+      inputs:
+        - { content_type: application/json, schema_ver: v1 }
+
+routes:
+  - from: timer-1
+    to: http-client
+    plane: control
+    topic: control/timer/http-client
+  # 未显式给出 content_type/schema_ver，将在编译期默认补全为
+  # content_type: application/json, schema_ver: v1
+
+  - from: resource-net
+    to: http-client
+    plane: control
+    topic: control/resource/netinfo
+  # 同上，默认 content_type/schema_ver 补全
+
+  - from: http-client
+    to: collector-sink
+    plane: data
+    topic: flow/edge/http-collector
+    port: dataport/http-collector
+    content_type: application/json
+    schema_ver: v1

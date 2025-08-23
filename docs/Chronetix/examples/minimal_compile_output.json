@@ -1,0 +1,122 @@
+{
+  "manifests": [
+    {
+      "plugin_id": "resource-netinfo",
+      "version": "0.1.0",
+      "category": "Resource",
+      "role": "EnvProvider",
+      "origin": "internal",
+      "artifact": {
+        "kind": "WasmComponent",
+        "uri": "builtin://chronetix/resource/netinfo"
+      },
+      "io": {
+        "inputs": [],
+        "outputs": [
+          {
+            "content_type": "application/json",
+            "schema_ver": "v1",
+            "schema_ref": "registry://schemas/resource/netinfo@v1"
+          }
+        ]
+      },
+      "qos": { "deadline_ns": 2000000, "priority": 5 },
+      "features": { "inproc": true, "ipc": true },
+      "annotations": {
+        "provides": ["ip", "netmask", "gateway", "ports", "media_location"]
+      }
+    },
+    {
+      "plugin_id": "timer-source",
+      "version": "0.1.0",
+      "category": "System",
+      "role": "Timer",
+      "origin": "internal",
+      "artifact": {
+        "kind": "WasmComponent",
+        "uri": "builtin://chronetix/system/timer"
+      },
+      "timers": [
+        {
+          "id": "tick",
+          "schedule": { "interval_ms": 1000, "align_to": "second" },
+          "miss_policy": "coalesce"
+        }
+      ],
+      "qos": { "deadline_ns": 1000000, "priority": 6 }
+    },
+    {
+      "plugin_id": "http-client",
+      "version": "0.1.0",
+      "category": "Business",
+      "role": "SourceTransform",
+      "origin": "external",
+      "artifact": {
+        "kind": "WasmComponent",
+        "uri": "file://plugins/http_client.wasm"
+      },
+      "io": {
+        "inputs": [{ "content_type": "application/json", "schema_ver": "v1" }],
+        "outputs": [{ "content_type": "application/json", "schema_ver": "v1" }]
+      },
+      "qos": {
+        "deadline_ns": 5000000,
+        "priority": 5,
+        "retry": 3,
+        "max_inflight": 32
+      }
+    },
+    {
+      "plugin_id": "collector-sink",
+      "version": "0.1.0",
+      "category": "Business",
+      "role": "Sink",
+      "origin": "external",
+      "artifact": {
+        "kind": "WasmComponent",
+        "uri": "file://plugins/collector.wasm"
+      },
+      "io": {
+        "inputs": [{ "content_type": "application/json", "schema_ver": "v1" }],
+        "outputs": []
+      },
+      "qos": { "deadline_ns": 5000000, "priority": 5 }
+    }
+  ],
+  "routes": [
+    {
+      "from": "timer-1",
+      "to": "http-client",
+      "plane": "control",
+      "topic": "control/timer/http-client",
+      "content_type": "application/json",
+      "schema_ver": "v1"
+    },
+    {
+      "from": "resource-net",
+      "to": "http-client",
+      "plane": "control",
+      "topic": "control/resource/netinfo",
+      "content_type": "application/json",
+      "schema_ver": "v1"
+    },
+    {
+      "from": "http-client",
+      "to": "collector-sink",
+      "plane": "data",
+      "topic": "flow/edge/http-collector",
+      "port": "dataport/http-collector",
+      "content_type": "application/json",
+      "schema_ver": "v1",
+      "buffer": 64,
+      "watermark": 48
+    }
+  ],
+  "schemas": [
+    {
+      "content_type": "application/json",
+      "schema_ver": "v1",
+      "schema_ref": "registry://schemas/resource/netinfo@v1"
+    }
+  ]
+}

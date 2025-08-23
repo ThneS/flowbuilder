@@ -27,6 +27,8 @@ Chronetix（运行/调度/传输）
   - manifests[]：PluginManifest（artifact/io/qos/resource_claims/features/annotations 以及 bindings：timers/bus_subscriptions/bus_publications）。
   - routes[]：Route（from/to/topic/port/content_type/schema_ver/plane/buffer/watermark）。
   - schemas[]：数据面 SchemaDescriptor 去重合集。
+  - 详见：`docs/Chronetix/chronetix-flowbridge-api-contract.md`。
+  - 插件分类/形态：origin（internal|external）、category（Business|System|Resource）。
 - 组件自描述（使用）：`describe-capabilities()`（WIT 导出），可在编译期读取以核对 IO 契约与默认 QoS。
 
 ## 3. 编码策略
@@ -36,8 +38,13 @@ Chronetix（运行/调度/传输）
 
 ## 4. 示例参考
 
-- 侧边车绑定与平台节点的 DSL 片段见 `docs/chronetix-integration-plan.md` §5。
+- 侧边车绑定与平台节点的 DSL 片段见 `docs/Chronetix/chronetix-integration-plan.md` §5。
 
 ## 5. 变更记录
 
 - 0.1.0（2025-08-22）：初始版本，明确职责与公共接口，落 CompileOutput 扩展字段。
+
+——
+相关：
+- 集成实现指南：`docs/Chronetix/IMPLEMENTATION_GUIDE.md`
+- 稳定入口索引：`docs/Chronetix/INDEX.md`
